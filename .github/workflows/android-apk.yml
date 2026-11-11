@@ -38,6 +38,12 @@ jobs:
         working-directory: frontend
         run: npm ci --include=dev
 
+      - name: Verify Capacitor Android
+        working-directory: frontend
+        run: |
+          npm ls @capacitor/android
+          test -d node_modules/@capacitor/android
+
       - name: Build frontend
         working-directory: frontend
         run: |
