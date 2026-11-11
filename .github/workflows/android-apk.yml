@@ -36,7 +36,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci --include=dev
+        run: |
+          npm ci --include=dev
+          npm install @capacitor/android@8.6.0 --no-save --include=dev
 
       - name: Verify Capacitor Android
         working-directory: frontend
