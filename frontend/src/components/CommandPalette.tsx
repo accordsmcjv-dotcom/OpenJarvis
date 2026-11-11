@@ -292,7 +292,7 @@ export function CommandPalette() {
           {(['installed', 'catalogue', 'cloud'] as Tab[]).map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => { setTab(t); if (t === 'cloud') void refreshCloudKeyStatus(); if (t === 'cloud') void refreshModels(); }}
               className="flex-1 px-3 py-2.5 text-xs font-medium transition-colors cursor-pointer"
               style={{
                 color: tab === t ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
