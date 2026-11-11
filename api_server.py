@@ -85,6 +85,31 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 "name": "JARVIS",
                 "message": "JARVIS API Server चालू आहे."
             })
+        elif self.path == "/v1/models":
+            if not os.getenv("OPENROUTER_API_KEY"):
+                self.send_json(401, {"error": "OpenRouter API key not configured"})
+                return
+            models = [
+                "openrouter/auto",
+                "openrouter/anthropic/claude-sonnet-4",
+                "openrouter/deepseek/deepseek-r1"
+            ]
+            self.send_json(200, {
+                "object": "list",
+                "data": [
+                    {
+                        "id": model,
+                        "object": "model",
+                        "created": 0,
+                        "owned_by": "openrouter"
+                    }
+                    for model in models
+                ]
+            })
+        elif self.path == "/v1/cloud/status":
+            self.send_json(200, {
+                "OPENROUTER_API_KEY": bool(os.getenv("OPENROUTER_API_KEY"))
+            })
         else:
             self.send_json(404, {"error": "API endpoint not found"})
 
@@ -132,7 +157,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             messages.extend(conversation)
 
             payload = {
-                "model": os.getenv("JARVIS_MODEL", "openrouter/free"),
+                "model": request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto"),
                 "messages": messages,
                 "stream": True,
                 "temperature": request.get("temperature", 0.7)
