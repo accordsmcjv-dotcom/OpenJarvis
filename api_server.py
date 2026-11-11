@@ -91,8 +91,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
             models = [
                 "openrouter/auto",
-                "openrouter/anthropic/claude-sonnet-4",
-                "openrouter/deepseek/deepseek-r1"
+                "anthropic/claude-sonnet-4",
+                "deepseek/deepseek-r1"
             ]
             self.send_json(200, {
                 "object": "list",
@@ -179,6 +179,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
                     if upstream.status_code != 200:
                         error_text = upstream.read().decode("utf-8", "replace")
+                        print("[OPENROUTER ERROR]", upstream.status_code, error_text[:1000])
                         self.send_json(502, {
                             "error": "OpenRouter API error",
                             "details": error_text[:1000]
