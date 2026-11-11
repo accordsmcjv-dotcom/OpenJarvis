@@ -46,7 +46,7 @@ jobs:
 
       - name: Sync Android
         working-directory: frontend
-        run: ./node_modules/.bin/cap sync android
+        run: npx --yes --package=@capacitor/cli@8.6.0 cap sync android
 
       - name: Build APK
         working-directory: frontend/android
