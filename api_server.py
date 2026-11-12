@@ -91,7 +91,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
             models = [
                 "openrouter/auto",
-                "anthropic/claude-sonnet-4",
+                "anthropic/claude-sonnet-4.6",
                 "deepseek/deepseek-r1"
             ]
             self.send_json(200, {
@@ -157,7 +157,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             messages.extend(conversation)
 
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
-            model_id = {"openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
+            model_id = {"openrouter/anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
 
             payload = {
                 "model": model_id,
