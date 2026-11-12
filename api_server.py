@@ -156,8 +156,11 @@ class JarvisAPI(BaseHTTPRequestHandler):
             messages = [{"role": "system", "content": build_system_prompt()}]
             messages.extend(conversation)
 
+            model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
+            model_id = {"openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
+
             payload = {
-                "model": request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto"),
+                "model": model_id,
                 "messages": messages,
                 "stream": True,
                 "temperature": request.get("temperature", 0.7)
