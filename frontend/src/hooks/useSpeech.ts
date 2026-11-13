@@ -10,9 +10,18 @@ export function useSpeech() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef('');
+  const recognitionErrorRef = useRef<string | null>(null);
 
-  // Check if speech backend is available on mount
+  // Prefer Android/WebView native Speech Recognition for Marathi.
+  // Keep the existing backend recorder as a fallback on browsers without it.
   useEffect(() => {
+    const NativeRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (NativeRecognition) {
+      setAvailable(true);
+      return;
+    }
     fetchSpeechHealth()
       .then((health) => setAvailable(health.available))
       .catch(() => setAvailable(false));
@@ -20,6 +29,39 @@ export function useSpeech() {
 
   const startRecording = useCallback(async (): Promise<void> => {
     setError(null);
+    transcriptRef.current = '';
+    recognitionErrorRef.current = null;
+
+    const NativeRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (NativeRecognition) {
+      try {
+        const recognition = new NativeRecognition();
+        recognition.lang = 'mr-IN';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex || 0; i < event.results.length; i++) {
+            text += event.results[i][0]?.transcript || '';
+          }
+          if (text.trim()) transcriptRef.current = text.trim();
+        };
+        recognition.onerror = (event: any) => {
+          recognitionErrorRef.current = event.error || 'Marathi speech recognition failed';
+        };
+        recognitionRef.current = recognition;
+        recognition.start();
+        setState('recording');
+        return;
+      } catch (err) {
+        recognitionRef.current = null;
+        const msg = err instanceof Error ? err.message : 'Speech recognition could not start';
+        setError(msg);
+        setState('idle');
+        return;
+      }
+    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('Microphone not supported in this browser');
@@ -47,6 +89,22 @@ export function useSpeech() {
   }, []);
 
   const stopRecording = useCallback(async (): Promise<string> => {
+    const nativeRecognition = recognitionRef.current;
+    if (nativeRecognition) {
+      setState('transcribing');
+      return new Promise((resolve, reject) => {
+        const finish = () => {
+          const text = transcriptRef.current.trim();
+          const error = recognitionErrorRef.current;
+          recognitionRef.current = null;
+          setState('idle');
+          if (text) resolve(text);
+          else reject(new Error(error ? `Speech recognition: ${error}` : 'आवाज समजला नाही. पुन्हा प्रयत्न करा.'));
+        };
+        nativeRecognition.onend = finish;
+        try { nativeRecognition.stop(); } catch { finish(); }
+      });
+    }
     return new Promise((resolve, reject) => {
       const recorder = mediaRecorderRef.current;
       if (!recorder || recorder.state !== 'recording') {

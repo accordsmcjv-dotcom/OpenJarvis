@@ -28,6 +28,7 @@ export async function* streamChat(
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent: string | undefined;
 
   try {
     while (true) {
@@ -37,8 +38,6 @@ export async function* streamChat(
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
-
-      let currentEvent: string | undefined;
 
       for (const line of lines) {
         if (line.startsWith('event: ')) {

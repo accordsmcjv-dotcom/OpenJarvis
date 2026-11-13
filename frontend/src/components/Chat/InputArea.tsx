@@ -84,6 +84,9 @@ export function InputArea() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wakeRecordingRef = useRef(false);
+  const wakeTimerRef = useRef<number | null>(null);
+
 
   const activeId = useAppStore((s) => s.activeId);
   const selectedModel = useAppStore((s) => s.selectedModel);
@@ -139,6 +142,74 @@ export function InputArea() {
       toast.error(speechError, { duration: 8000 });
     }
   }, [speechError]);
+
+
+  // Hey JARVIS foreground wake-word listener
+  useEffect(() => {
+    if (!speechEnabled || !speechAvailable || speechState !== 'idle') return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    let cancelled = false;
+
+    recognition.lang = "mr-IN";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    const resumeListening = () => {
+      if (cancelled || wakeRecordingRef.current) return;
+      try { recognition.start(); } catch {}
+    };
+
+    recognition.onresult = (event: any) => {
+      const result = event.results?.[event.results.length - 1];
+      const spoken = String(result?.[0]?.transcript || "").toLowerCase();
+
+      if (!/(hey\s*jarvis|हे\s*जार्विस|ए\s*जार्विस)/i.test(spoken)) return;
+
+      wakeRecordingRef.current = true;
+      recognition.stop();
+
+      window.setTimeout(async () => {
+        if (cancelled) return;
+
+        await startRecording();
+
+        wakeTimerRef.current = window.setTimeout(async () => {
+          try {
+            const command = await stopRecording();
+            if (command) {
+              setInput((previous) =>
+                previous ? `${previous} ${command}` : command
+              );
+            }
+          } catch {}
+
+          wakeRecordingRef.current = false;
+          resumeListening();
+        }, 7000);
+      }, 500);
+    };
+
+    recognition.onerror = () => {};
+    recognition.onend = () => {
+      if (!cancelled && !wakeRecordingRef.current) {
+        window.setTimeout(resumeListening, 700);
+      }
+    };
+
+    resumeListening();
+
+    return () => {
+      cancelled = true;
+      if (wakeTimerRef.current) window.clearTimeout(wakeTimerRef.current);
+      try { recognition.stop(); } catch {}
+    };
+  }, [speechEnabled, speechAvailable, speechState, startRecording, stopRecording]);
 
   const handleMicClick = useCallback(async () => {
     if (speechState === 'recording') {
@@ -384,12 +455,27 @@ export function InputArea() {
         if (eventName === 'agent_turn_start') {
           setStreamState({ phase: 'Agent thinking...' });
         } else if (eventName === 'inference_start') {
-          setStreamState({ phase: 'Generating...' });
-          useAppStore.getState().addLogEntry({
-            timestamp: Date.now(), level: 'info', category: 'chat',
-            message: `Generating with ${selectedModel}...`,
-          });
-        } else if (eventName === 'tool_call_start') {
+        setStreamState({ phase: 'Generating...' });
+        let modelInfo: { selected_model?: string; actual_model?: string } = {};
+        try {
+          modelInfo = JSON.parse(sseEvent.data || '{}');
+        } catch {}
+        const actualModel = modelInfo.actual_model || modelInfo.selected_model || selectedModel;
+        useAppStore.getState().addLogEntry({
+          timestamp: Date.now(), level: 'info', category: 'chat',
+          message: `Generating with ${actualModel}${actualModel !== selectedModel ? ` (selected: ${selectedModel})` : ''}...`,
+        });
+      } else if (eventName === 'inference_model') {
+        try {
+          const modelInfo = JSON.parse(sseEvent.data || '{}');
+          if (modelInfo.actual_model) {
+            useAppStore.getState().addLogEntry({
+              timestamp: Date.now(), level: 'info', category: 'chat',
+              message: `Actual provider model: ${modelInfo.actual_model}`,
+            });
+          }
+        } catch {}
+      } else if (eventName === 'tool_call_start') {
           try {
             const data = JSON.parse(sseEvent.data);
             const tc: ToolCallInfo = {
