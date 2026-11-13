@@ -472,18 +472,18 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 history = load_history()
                 if not history or history[-1] != incoming[0]:
                     history.append(incoming[0])
-                conversation = history[-3:]
+                conversation = history[-20:]
             elif incoming:
-                conversation = incoming[-3:]
+                conversation = incoming[-20:]
             else:
-                conversation = load_history()[-3:]
+                conversation = load_history()[-20:]
 
             if not conversation or conversation[-1]["role"] != "user":
                 self.send_json(400, {"error": "User message आवश्यक आहे"})
                 return
 
             messages = [{"role": "system", "content": build_system_prompt()}]
-            messages.extend(conversation[-1:])
+            messages.extend(conversation)
 
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
             model_id = {"anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
