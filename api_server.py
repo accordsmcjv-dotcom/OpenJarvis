@@ -229,26 +229,41 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 "message": "JARVIS API Server चालू आहे."
             })
         elif self.path == "/v1/models":
-            if not os.getenv("OPENROUTER_API_KEY"):
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
                 self.send_json(401, {"error": "OpenRouter API key not configured"})
                 return
-            models = [
-                "openrouter/auto",
-                "anthropic/claude-sonnet-4.6",
-                "deepseek/deepseek-r1"
-            ]
-            self.send_json(200, {
-                "object": "list",
-                "data": [
-                    {
-                        "id": model,
+            try:
+                response = httpx.get(
+                    "https://openrouter.ai/api/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=30
+                )
+                response.raise_for_status()
+                catalog = response.json().get("data", [])
+                models = [{
+                    "id": "openrouter/auto",
+                    "object": "model",
+                    "created": 0,
+                    "owned_by": "openrouter",
+                    "name": "OpenRouter Auto"
+                }]
+                for model in catalog:
+                    if not isinstance(model, dict) or not model.get("id"):
+                        continue
+                    models.append({
+                        "id": model["id"],
                         "object": "model",
-                        "created": 0,
-                        "owned_by": "openrouter"
-                    }
-                    for model in models
-                ]
-            })
+                        "created": model.get("created", 0),
+                        "owned_by": model.get("id", "openrouter").split("/")[0],
+                        "name": model.get("name", model["id"])
+                    })
+                self.send_json(200, {"object": "list", "data": models})
+            except Exception as exc:
+                self.send_json(502, {
+                    "error": "OpenRouter model catalog मिळवता आला नाही",
+                    "details": str(exc)[:250]
+                })
         elif self.path == "/v1/tools":
             self.send_json(200, {
                 "tools": get_available_tools()

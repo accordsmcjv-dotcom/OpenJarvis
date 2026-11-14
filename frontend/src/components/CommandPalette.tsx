@@ -65,11 +65,7 @@ const CLOUD_PROVIDERS: CloudProvider[] = [
   {
     name: 'OpenRouter',
     envKey: 'OPENROUTER_API_KEY',
-    models: [
-      { id: 'openrouter/auto', desc: 'Auto — best model for the task' },
-      { id: 'anthropic/claude-sonnet-4.6', desc: 'Claude Sonnet 4.6 via OpenRouter' },
-      { id: 'deepseek/deepseek-r1', desc: 'DeepSeek R1 via OpenRouter' },
-    ],
+    models: [],
   },
   {
     name: 'Atlas Cloud',
@@ -98,6 +94,7 @@ export function CommandPalette() {
   const [cloudKeyStatus, setCloudKeyStatus] = useState<Record<string, boolean>>({});
   const [cloudKeyError, setCloudKeyError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [openRouterModels, setOpenRouterModels] = useState<Array<{ id: string; desc: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const models = useAppStore((s) => s.models);
@@ -136,6 +133,27 @@ export function CommandPalette() {
   useEffect(() => {
     void refreshCloudKeyStatus();
   }, [refreshCloudKeyStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadOpenRouterModels = async () => {
+      try {
+        const available = await fetchModels();
+        if (cancelled) return;
+        const dynamicModels = available
+          .filter((model) => model.id === 'openrouter/auto' || model.id.includes('/'))
+          .map((model) => ({
+            id: model.id,
+            desc: model.id === 'openrouter/auto' ? 'Auto — best model for the task' : model.owned_by + ' via OpenRouter',
+          }));
+        setOpenRouterModels(dynamicModels);
+      } catch (error) {
+        console.error('OpenRouter model catalog load failed:', error);
+      }
+    };
+    void loadOpenRouterModels();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     setSelectedIdx(0);
@@ -468,6 +486,9 @@ export function CommandPalette() {
               </div>
 
               {CLOUD_PROVIDERS.map((provider) => {
+                const providerModels = provider.name === 'OpenRouter' && openRouterModels.length
+                  ? openRouterModels
+                  : provider.models;
                 const key = apiKeys[provider.envKey] || '';
                 const hasSavedKey = !!cloudKeyStatus[provider.envKey];
                 const hasKey = hasSavedKey || !!key.trim();
@@ -522,7 +543,7 @@ export function CommandPalette() {
                     {/* Models for this provider (only show if key is set) */}
                     {hasKey && (
                       <div className="ml-5 flex flex-col gap-1">
-                        {provider.models.map((model) => {
+                        {providerModels.map((model) => {
                           const isActive = model.id === selectedModel;
                           return (
                             <button
