@@ -490,6 +490,122 @@ def memory_integrity_check():
 
 
 
+
+
+def memory_dashboard():
+    """Memory ची Category नुसार आकडेवारी आणि आरोग्य दाखवा."""
+    memory = load_json(MEMORY_FILE, {})
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+    if not isinstance(memory, dict):
+        return {"error": "Memory फाइल अवैध आहे."}
+    if not isinstance(categories, dict):
+        categories = {}
+    counts = {"preference": 0, "project": 0, "personal_context": 0, "general": 0}
+    sensitive = 0
+    for key, value in memory.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        if is_sensitive_memory(key, value):
+            sensitive += 1
+            continue
+        category = categories.get(key) or infer_memory_category(key, value)
+        if category not in counts:
+            category = "general"
+        counts[category] += 1
+    return {
+        "total_safe_memories": sum(counts.values()),
+        "category_counts": counts,
+        "sensitive_entries_excluded": sensitive,
+        "backup_count": list_memory_backups().get("count", 0)
+    }
+
+
+def detect_memory_conflicts():
+    """समान अर्थाच्या Key मधील संभाव्य विरोधाभास शोधा; बदल करू नका."""
+    memory = load_json(MEMORY_FILE, {})
+    if not isinstance(memory, dict):
+        return {"error": "Memory फाइल अवैध आहे."}
+    entries = []
+    for key, value in memory.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        if is_sensitive_memory(key, value):
+            continue
+        words = set(re.findall(r"[a-zA-Z0-9अ-ह]+", key.lower()))
+        if words:
+            entries.append((key, value, words))
+    conflicts = []
+    for i, (key1, value1, words1) in enumerate(entries):
+        for key2, value2, words2 in entries[i + 1:]:
+            overlap = len(words1 & words2) / max(1, min(len(words1), len(words2)))
+            if overlap >= 0.6 and value1.strip().casefold() != value2.strip().casefold():
+                conflicts.append({
+                    "key_1": key1, "value_1": value1,
+                    "key_2": key2, "value_2": value2,
+                    "reason": "समान Key शब्द; मूल्य वेगवेगळे. कृपया पडताळा."
+                })
+                if len(conflicts) >= 30:
+                    break
+        if len(conflicts) >= 30:
+            break
+    return {"possible_conflicts": len(conflicts), "items": conflicts,
+            "note": "ही संभाव्य जुळणी आहे; आपोआप कोणतीही Memory बदललेली नाही."}
+
+
+def recall_conversation_context(query="", limit=8):
+    """जुन्या संभाषणातून प्रश्नाशी संबंधित संदर्भ शोधा."""
+    if not isinstance(query, str) or not query.strip():
+        return {"error": "शोधण्यासाठी प्रश्न किंवा शब्द आवश्यक आहेत."}
+    try:
+        limit = max(1, min(int(limit), 12))
+    except (TypeError, ValueError):
+        limit = 8
+    history = load_history()
+    terms = [x for x in re.findall(r"[a-zA-Z0-9अ-ह]+", query.lower()) if len(x) > 1]
+    matches = []
+    for item in reversed(history):
+        content = item.get("content", "")
+        if not isinstance(content, str):
+            continue
+        lowered = content.lower()
+        score = sum(1 for term in terms if term in lowered)
+        if score:
+            matches.append({
+                "role": item.get("role", ""),
+                "content": content[:700],
+                "match_score": score
+            })
+        if len(matches) >= limit:
+            break
+    return {"query": query, "matches": matches, "count": len(matches)}
+
+
+def preview_memory_backup(filename):
+    """Backup पुनर्संचयित करण्यापूर्वी सुरक्षितपणे तपासा; फाइल बदलू नका."""
+    if not isinstance(filename, str) or os.path.basename(filename) != filename:
+        return {"error": "Backup फाइलचे नाव अवैध आहे."}
+    if not filename.endswith(".json") or not filename.startswith(("memory_", "memory_categories_")):
+        return {"error": "ही अनुमत Memory Backup फाइल नाही."}
+    path = os.path.join(BASE_DIR, "MEMORY_BACKUPS", filename)
+    if not os.path.isfile(path):
+        return {"error": "Backup फाइल सापडली नाही."}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {"error": "Backup मधील JSON Dictionary नाही."}
+        return {
+            "valid": True,
+            "filename": filename,
+            "entries": len(data),
+            "size_bytes": os.path.getsize(path),
+            "restore_status": "preview_only",
+            "message": "Backup वैध आहे. मूळ Memory मध्ये कोणताही बदल केलेला नाही."
+        }
+    except Exception as exc:
+        return {"valid": False, "error": type(exc).__name__}
+
+
 def list_memory_backups():
     """स्थानिक Memory Backups ची यादी आणि JSON वैधता तपासा."""
     folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
@@ -1462,6 +1578,51 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "memory_dashboard",
+                        "description": "SHIVAM Memory ची Category नुसार आकडेवारी आणि सुरक्षित नोंदींची संख्या दाखवा.",
+                        "parameters": {"type": "object", "properties": {}, "additionalProperties": False}
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "detect_memory_conflicts",
+                        "description": "समान Key असलेल्या संभाव्य विरोधी Memory नोंदी शोधा. कोणतीही नोंद बदलू नका.",
+                        "parameters": {"type": "object", "properties": {}, "additionalProperties": False}
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "recall_conversation_context",
+                        "description": "जुन्या संभाषणातून दिलेल्या प्रश्नाशी संबंधित संदर्भ शोधा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string"},
+                                "limit": {"type": "integer", "minimum": 1, "maximum": 12}
+                            },
+                            "required": ["query"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "preview_memory_backup",
+                        "description": "Memory Backup पुनर्संचयित करण्यापूर्वी त्याची वैधता तपासा. ही फक्त Preview सुविधा आहे; Restore करत नाही.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"filename": {"type": "string"}},
+                            "required": ["filename"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "memory_integrity_check",
                         "description": "SHIVAM Memory आणि Category फाइलची सुसंगतता तपासा. कोणतीही नोंद बदलू नका.",
                         "parameters": {
@@ -1716,6 +1877,17 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 result = forget_memory_item(
                                     arguments.get("key")
                                 )
+                            elif tool_name == "memory_dashboard":
+                                result = memory_dashboard()
+                            elif tool_name == "detect_memory_conflicts":
+                                result = detect_memory_conflicts()
+                            elif tool_name == "recall_conversation_context":
+                                result = recall_conversation_context(
+                                    arguments.get("query", ""),
+                                    arguments.get("limit", 8)
+                                )
+                            elif tool_name == "preview_memory_backup":
+                                result = preview_memory_backup(arguments.get("filename", ""))
                             elif tool_name == "memory_integrity_check":
                                 result = memory_integrity_check()
                             elif tool_name == "list_memory_backups":
