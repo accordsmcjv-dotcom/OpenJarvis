@@ -208,6 +208,40 @@ def openrouter_stream(client, headers, payload):
 
 nse.close()
 
+
+def safe_stream_lines(response, stage):
+    completed = False
+    try:
+        for line in response.iter_lines():
+            if isinstance(line, bytes):
+                line = line.decode("utf-8", errors="replace")
+            if line.startswith("data:") and line[5:].strip() == "[DONE]":
+                completed = True
+            yield line
+    except (httpx.TransportError, OSError, TimeoutError) as exc:
+        print(f"[SHIVAM STREAM INTERRUPTED] {stage}: {exc!r}")
+        warning = {
+            "choices": [{
+                "delta": {
+                    "content": "\n[उत्तराचा प्रवाह मध्येच खंडित झाला. उपलब्ध उत्तर येथे दिले आहे.]"
+                }
+            }]
+        }
+        yield "data: " + json.dumps(warning, ensure_ascii=False)
+        return
+
+    if not completed:
+        print(f"[SHIVAM STREAM INCOMPLETE] {stage}: DONE event missing")
+        warning = {
+            "choices": [{
+                "delta": {
+                    "content": "\n[उत्तराचा प्रवाह पूर्ण होण्यापूर्वी थांबला. उपलब्ध उत्तर येथे दिले आहे.]"
+                }
+            }]
+        }
+        yield "data: " + json.dumps(warning, ensure_ascii=False)
+
+
 def load_json(path, default):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -1207,7 +1241,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     pending_calls = {}
                     last_chunk = None
 
-                    for line in upstream.iter_lines():
+                    for line in safe_stream_lines(upstream, 'MAIN'):
                         if not line.startswith("data:"):
                             continue
 
@@ -1429,7 +1463,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                     }]
                                 }
                             else:
-                                for line in final_upstream.iter_lines():
+                                for line in safe_stream_lines(final_upstream, 'FINAL'):
                                     if not line.startswith("data:"):
                                         continue
 
