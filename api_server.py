@@ -200,6 +200,17 @@ def load_prompt():
     raise RuntimeError("JARVIS base_prompt सापडला नाही")
 
 
+def is_sensitive_memory(key, value):
+    text = str(key) + " " + str(value)
+    if str(key).strip().isdigit():
+        return True
+    return bool(re.search(
+        r"password|passcode|api.?key|secret|token|otp|पासवर्ड|गुप्त.?कळ|"
+        r"(?:jarvis|shivam)[-_ ]?\\d{3,}",
+        text, re.I
+    ))
+
+
 def build_system_prompt():
     prompt = load_prompt()
     prompt = prompt.replace(
@@ -242,7 +253,7 @@ def build_system_prompt():
     if isinstance(memory, dict) and memory:
         context = "\\n".join(
             "- " + str(k) + ": " + str(v)
-            for k, v in list(memory.items())[-20:]
+            for k, v in [(k, v) for k, v in memory.items() if not is_sensitive_memory(k, v)][-20:]
         )[:2000]
         prompt += "\\nलक्षात ठेवलेली माहिती:\\n" + context
 
@@ -259,6 +270,10 @@ def save_memory_item(key, value):
 
     if not key or not value:
         return {"error": "Memory Key आणि Value आवश्यक आहेत."}
+    if is_sensitive_memory(key, value):
+        return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही."}
+    if is_sensitive_memory(key, value):
+        return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही."}
 
     memory = load_json(MEMORY_FILE, {})
     if not isinstance(memory, dict):
