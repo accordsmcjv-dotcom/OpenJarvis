@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import json
 import os
+import shutil
 import math
 import ast
 import asyncio
@@ -427,6 +428,30 @@ def build_system_prompt():
     return prompt
 
 
+
+
+def backup_memory_state():
+    """Memory बदलण्यापूर्वी सुरक्षित स्थानिक बॅकअप."""
+    folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
+    os.makedirs(folder, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for name in ("memory.json", "memory_categories.json"):
+        source = os.path.join(BASE_DIR, name)
+        if not os.path.isfile(source):
+            continue
+        target = os.path.join(folder, name.replace(".json", "_" + stamp + ".json"))
+        shutil.copy2(source, target)
+
+    for name in ("memory", "memory_categories"):
+        files = sorted(
+            [f for f in os.listdir(folder) if f.startswith(name + "_")],
+            reverse=True
+        )
+        for old in files[10:]:
+            os.remove(os.path.join(folder, old))
+
+
 def save_memory_item(key, value, category="general"):
     if not isinstance(key, str) or not isinstance(value, str):
         return {"error": "Memory माहिती अवैध आहे."}
@@ -470,6 +495,7 @@ def save_memory_item(key, value, category="general"):
             "error": "ही Key आधीपासून अस्तित्वात आहे. जुनी माहिती बदलण्यासाठी update_memory_item वापरा."
         }
 
+    backup_memory_state()
     memory[key] = value
     save_json(MEMORY_FILE, memory)
 
@@ -522,6 +548,22 @@ def update_memory_item(key, value):
     if not isinstance(memory, dict) or key not in memory:
         return {"error": "ही Memory Key सापडली नाही."}
 
+    normalized_value = " ".join(
+        __import__("re").sub(r"[^\\w\\s]", " ", value.casefold()).split()
+    )
+    for other_key, other_value in memory.items():
+        if other_key == key or not isinstance(other_value, str):
+            continue
+        existing = " ".join(
+            __import__("re").sub(r"[^\\w\\s]", " ", other_value.casefold()).split()
+        )
+        if existing == normalized_value:
+            return {"error": "ही माहिती दुसऱ्या '" + str(other_key) + "' Key खाली आधीपासून आहे."}
+
+    if memory[key] == value:
+        return {"result": "माहिती आधीपासून तशीच आहे. बदल केला नाही."}
+
+    backup_memory_state()
     memory[key] = value
     save_json(MEMORY_FILE, memory)
     return {"result": "Memory यशस्वीपणे अपडेट झाली."}
@@ -537,6 +579,7 @@ def forget_memory_item(key):
     if not isinstance(memory, dict) or key not in memory:
         return {"error": "ही Memory Key सापडली नाही."}
 
+    backup_memory_state()
     del memory[key]
     save_json(MEMORY_FILE, memory)
     categories = load_json(MEMORY_CATEGORIES_FILE, {})
