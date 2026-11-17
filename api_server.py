@@ -430,6 +430,64 @@ def build_system_prompt():
 
 
 
+
+
+def infer_memory_category(key, value):
+    """माहितीच्या आशयानुसार प्राथमिक Memory Category निवडा."""
+    text = (str(key) + " " + str(value)).casefold()
+
+    preference_words = (
+        "पसंती", "आवड", "सूचना", "कार्यपद्धती", "नेहमी",
+        "कायम", "preference", "prefer", "always", "style"
+    )
+    project_words = (
+        "प्रोजेक्ट", "प्रकल्प", "कोड", "अॅप", "ॲप",
+        "project", "github", "termux", "api", "development"
+    )
+    personal_words = (
+        "माझे नाव", "माझं नाव", "माझे काम", "माझा व्यवसाय",
+        "my name", "my job", "my business", "family"
+    )
+
+    if any(word in text for word in preference_words):
+        return "preference"
+    if any(word in text for word in project_words):
+        return "project"
+    if any(word in text for word in personal_words):
+        return "personal_context"
+    return "general"
+
+
+def memory_integrity_check():
+    """Memory आणि Category फाइलमधील सुसंगतता तपासा; नोंदी बदलू नका."""
+    memory = load_json(MEMORY_FILE, {})
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+    if not isinstance(memory, dict):
+        return {"error": "Memory फाइलमध्ये वैध Dictionary नाही."}
+    if not isinstance(categories, dict):
+        return {"error": "Category फाइलमध्ये वैध Dictionary नाही."}
+
+    allowed = ("preference", "project", "personal_context", "general")
+    missing = sum(1 for key in memory if key not in categories)
+    invalid = sum(1 for key in memory if categories.get(key, "general") not in allowed)
+    orphan = sum(1 for key in categories if key not in memory)
+    sensitive = sum(
+        1 for key, value in memory.items()
+        if isinstance(value, str) and is_sensitive_memory(key, value)
+    )
+
+    return {
+        "total_memory": len(memory),
+        "total_categories": len(categories),
+        "missing_categories": missing,
+        "invalid_categories": invalid,
+        "orphan_categories": orphan,
+        "sensitive_entries_excluded_from_search": sensitive,
+        "integrity": "needs_attention" if (missing or invalid or orphan) else "ok",
+        "note": "हा तपासणी अहवाल आहे. कोणतीही Memory नोंद बदललेली नाही."
+    }
+
+
 def backup_memory_state():
     """Memory बदलण्यापूर्वी सुरक्षित स्थानिक बॅकअप."""
     folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
@@ -462,6 +520,8 @@ def save_memory_item(key, value, category="general"):
     if not key or not value:
         return {"error": "Memory Key आणि Value आवश्यक आहेत."}
     allowed_categories = ("preference", "project", "personal_context", "general")
+    if category in (None, "", "auto"):
+        category = infer_memory_category(key, value)
     if category not in allowed_categories:
         return {"error": "Memory Category अवैध आहे."}
     if is_sensitive_memory(key, value):
@@ -1327,9 +1387,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             "properties": {
                                 "key": {"type": "string", "description": "माहितीचा विषय"},
                                 "value": {"type": "string", "description": "जतन करायची माहिती"},
-                                "category": {"type": "string", "enum": ["preference", "project", "personal_context", "general"], "description": "माहितीची Category"}
+                                "category": {"type": "string", "enum": ["auto", "preference", "project", "personal_context", "general"], "description": "auto दिल्यास माहितीच्या स्वरूपानुसार Category निवडली जाईल"}
                             },
-                            "required": ["key", "value", "category"],
+                            "required": ["key", "value"],
                             "additionalProperties": False
                         }
                     }
@@ -1361,6 +1421,18 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 "key": {"type": "string", "description": "हटवायच्या Memory ची अचूक Key"}
                             },
                             "required": ["key"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "memory_integrity_check",
+                        "description": "SHIVAM Memory आणि Category फाइलची सुसंगतता तपासा. कोणतीही नोंद बदलू नका.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
                             "additionalProperties": False
                         }
                     }
@@ -1587,7 +1659,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 result = save_memory_item(
                                     arguments.get("key"),
                                     arguments.get("value"),
-                                    arguments.get("category", "general")
+                                    arguments.get("category", "auto")
                                 )
                             elif tool_name == "update_memory_item":
                                 result = update_memory_item(
@@ -1598,6 +1670,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 result = forget_memory_item(
                                     arguments.get("key")
                                 )
+                            elif tool_name == "memory_integrity_check":
+                                result = memory_integrity_check()
                             else:
                                 result = execute_tool(tool_name, arguments)
 
