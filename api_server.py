@@ -121,7 +121,8 @@ def correct_marathi(text):
         text = text.replace(wrong, right)
 
     text = re.sub(r"[ \\t]{2,}", " ", text)
-    r@contextmanager
+    return text
+@contextmanager
 def openrouter_stream(client, headers, payload):
     body = dict(payload)
 
