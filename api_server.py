@@ -18,6 +18,7 @@ HISTORY_FILE = os.path.join(BASE_DIR, "chat_history.json")
 JARVIS_FILE = os.path.join(BASE_DIR, "jarvis.py")
 
 APPROVALS_FILE = os.path.join(BASE_DIR, "pending_approvals.json")
+MODELS_CACHE_FILE = os.path.join(BASE_DIR, "models_cache.json")
 
 
 def load_approvals():
@@ -54,6 +55,70 @@ def create_approval(app_name):
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
+def correct_marathi(text):
+    """सामान्य मराठी शब्दप्रयोग आणि व्याकरण सुरक्षितपणे सुधारा."""
+    if not isinstance(text, str) or not text:
+        return text
+
+    text = text.replace("मी शिवम आहे, तुम्हाला AI मदत करायची.", "मी शिवम आहे. मी तुम्हाला AI च्या मदतीने सहाय्य करतो.")
+
+    corrections = {
+        "मी तुमचे प्रश्न सोप्या मराठीत उत्तरांसह सोडवतो": "मी तुमच्या प्रश्नांची उत्तरे सोप्या मराठीत देतो",
+        "उत्तर देणाराहो": "उत्तर देईन",
+        "उत्तर देशोय": "उत्तर देत आहे",
+        "इतर भाषा मध्ये": "इतर भाषांमध्ये",
+        "तुम्ही कसा समजले?": "तुम्हाला हे समजले का?",
+        "आजचा नवीन शिकवणारी गोष्ट": "आजची नवीन शिकवणारी गोष्ट",
+        "प्रकाशाची गती कसे जाणवते": "प्रकाशाचा वेग किती आहे?",
+        "मला समजला नाही": "मला समजले नाही",
+        "मी मदत करू शकतो तुम्हाला": "मी तुम्हाला मदत करू शकतो",
+        "तुम्हाला AI मदत करायची": "तुम्हाला AI द्वारे मदत करायची",
+        "मी शिवम आहे, तुम्हाला AI मदत करायची": "मी शिवम आहे. मी तुम्हाला AI च्या मदतीने सहाय्य करतो",
+        "तुम्ही काय म्हणतो": "तुम्ही काय म्हणता",
+        "कृपया करून": "कृपया",
+        "माझे नाव आहे शिवम": "माझे नाव शिवम आहे",
+    }
+
+    corrections.update({
+        "क्या आप मेरी मदद कर सकते हैं": "तुम्ही मला मदत करू शकता का?",
+        "मुझे समझ में नहीं आया": "मला समजले नाही",
+        "आप कैसे हैं": "तुम्ही कसे आहात",
+        "बहुत अच्छा": "खूप छान",
+        "धन्यवाद आपका": "तुमचे आभार",
+        "कोई बात नहीं": "काही हरकत नाही",
+        "मुझे लगता है": "मला वाटते",
+        "अभी के लिए": "सध्यापुरते",
+        "इसके अलावा": "याशिवाय",
+        "कृपया बताइए": "कृपया सांगा",
+    })
+
+    corrections.update({
+        "मी तुम्हाला मदत करेल": "मी तुम्हाला मदत करीन",
+        "तुम्ही कसा आहात?": "तुम्ही कसे आहात?",
+        "तुम्ही कुठे जातो?": "तुम्ही कुठे जाता?",
+        "तुम्हाला कसे वाटतो?": "तुम्हाला कसे वाटते?",
+        "मला हे समजत नाहीये": "मला हे समजत नाही",
+        "मी तुमचे आभारी आहे": "मी तुमचा आभारी आहे",
+        "तुमचे स्वागत आहे": "तुमचे मनापासून स्वागत आहे",
+    })
+
+    corrections.update({
+        "How are you?": "तुम्ही कसे आहात?",
+        "I am fine": "मी ठीक आहे",
+        "Thank you": "धन्यवाद",
+        "Good morning": "शुभ सकाळ",
+        "Please help me": "कृपया मला मदत करा",
+        "I don't understand": "मला समजत नाही",
+        "What is your name?": "तुमचे नाव काय आहे?",
+        "Where are you going?": "तुम्ही कुठे जात आहात?",
+    })
+
+    for wrong, right in corrections.items():
+        text = text.replace(wrong, right)
+
+    text = re.sub(r"[ \\t]{2,}", " ", text)
+    return text
+
 @contextmanager
 def openrouter_stream(client, headers, payload):
     body = dict(payload)
@@ -63,24 +128,52 @@ def openrouter_stream(client, headers, payload):
     )
 
     if response.status_code == 402 and body.get("model") != "openrouter/free":
-        error_text = response.read().decode("utf-8", "replace")
         response.close()
         body["model"] = "openrouter/free"
-        body["max_tokens"] = 150
+        body["max_tokens"] = 8192
+        body["reasoning"] = {"effort": "low"}
         if body.get("messages") and body["messages"][0].get("role") == "system":
             body["messages"][0]["content"] += "\nसध्या प्रत्यक्ष वापरलेला मॉडेल पर्याय OpenRouter Free Model आहे. त्याला OpenRouter Auto म्हणू नकोस."
-        print("[JARVIS] Credits कमी आहेत. आता OpenRouter Free Model वापरत आहे.")
+        print("[SHIVAM] OpenRouter Free Model वापरत आहे.")
         response = client.send(
             client.build_request("POST", OPENROUTER_URL, headers=headers, json=body),
             stream=True
         )
 
-    response.extensions["jarvis_model"] = body.get("model", "")
+    if response.status_code == 429 and os.getenv("GROQ_API_KEY"):
+        response.close()
+        groq_body = dict(body)
+        groq_body["model"] = "openai/gpt-oss-20b"
+        groq_body["max_tokens"] = 512
+        groq_body["reasoning_effort"] = "low"
+        groq_body.pop("reasoning", None)
+        groq_headers = {
+            "Authorization": "Bearer " + os.getenv("GROQ_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        print("[SHIVAM] OpenRouter मर्यादा संपली. Groq पर्यायी सेवा वापरत आहे.")
+        response = client.send(
+            client.build_request(
+                "POST",
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=groq_headers,
+                json=groq_body
+            ),
+            stream=True
+        )
+        if response.status_code != 200:
+            error_text = response.read().decode("utf-8", errors="replace")
+            response.close()
+            raise RuntimeError("Groq API error " + str(response.status_code) + ": " + error_text[:1000])
+        response.extensions["jarvis_model"] = "Groq: openai/gpt-oss-20b"
+
+    if not response.extensions.get("jarvis_model"):
+        response.extensions["jarvis_model"] = body.get("model", "")
+
     try:
         yield response
     finally:
         response.close()
-
 
 def load_json(path, default):
     try:
@@ -108,24 +201,146 @@ def load_prompt():
 
 
 def build_system_prompt():
-    prompt = (
-        "तुझे नाव SHIVAM (शिवम) आहे. स्वतःला JARVIS, Flint किंवा Recursive म्हणू नकोस. "
-        "नेहमी सोप्या, शुद्ध आणि नैसर्गिक मराठीत उत्तर दे. "
-        "प्रश्नाचा संदर्भ समजून थेट उत्तर दे. "
-        "खात्री नसलेली माहिती बनवू नकोस. "
-        "मागील संभाषणाचा उपलब्ध संदर्भ वापर. "
-        "Tool वापरताना नियम पाळ. Android App उघडण्यापूर्वी "
-        "वापरकर्त्याची स्पष्ट मंजुरी आवश्यक आहे. "
-        "मंजुरी मिळेपर्यंत App उघडू नकोस."
+    prompt = load_prompt()
+    prompt = prompt.replace(
+        "तुझे नाव JARVIS आहे.",
+        "तुझे नाव SHIVAM (शिवम) आहे.",
+        1
     )
+    prompt = prompt.replace(
+        "स्वतःला Flint किंवा Recursive म्हणू नकोस.",
+        "स्वतःला JARVIS, Flint किंवा Recursive म्हणू नकोस.",
+        1
+    )
+    prompt += (
+        "प्रत्येक उत्तर पाठवण्यापूर्वी मनातल्या मनात मराठी व्याकरण आणि वाक्यरचना तपास. "
+        "अर्थहीन, चुकीचे किंवा अर्धवट शब्दप्रयोग वापरू नकोस. "
+        "हिंदी आणि मराठी शब्दांची अनावश्यक सरमिसळ करू नकोस. "
+        "वाक्य नैसर्गिक, पूर्ण आणि स्पष्ट मराठीत पुन्हा मांड. "
+"मी उत्तर देईन, मी उत्तर देत आहे, मला समजले, मी मदत करू शकतो असे योग्य शब्दप्रयोग वापर. "
+"लिंग, वचन, काळ, विभक्ती आणि क्रियापद यांचे व्याकरण जुळव. "
+"हिंदी ढंगाची वाक्यरचना टाळ आणि संभाषणातील मराठी भाषा नैसर्गिक ठेव. "
+"अतिशय अवघड किंवा कृत्रिम शब्दांऐवजी सर्वसामान्यांना समजणारे मराठी शब्द वापर. "
+        "उदाहरणार्थ, 'हा वेळतून' असे चुकीचे वाक्य न वापरता 'मी नेहमी सोप्या मराठीत उत्तर देतो' असे लिही. "
+        "मागील संभाषणाचा उपलब्ध संदर्भ वापर. "
+        "वापरकर्त्याने सध्याची वेळ, तारीख किंवा वार विचारल्यास "
+        "get_current_time Tool नक्की वापर. "
+        "Tool मधून मिळालेल्या अचूक माहितीनुसारच उत्तर दे. "
+        "Android App उघडण्यापूर्वी वापरकर्त्याची स्पष्ट मंजुरी आवश्यक आहे. "
+        "मंजुरी मिळेपर्यंत App उघडू नकोस. "
+        "दीर्घकाळ उपयोगी आणि स्पष्ट नवीन माहिती जतन करण्यासाठी save_memory_item Tool वापर. "
+        "नवीन माहिती जतन करण्यापूर्वी Memory मधील Key तपास आणि समान माहिती पुन्हा जतन करू नकोस. "
+        "आधीची माहिती बदलण्याची स्पष्ट विनंती असल्यास update_memory_item Tool वापर. "
+        "जतन केलेली माहिती विसरण्याची स्पष्ट विनंती असल्यास forget_memory_item Tool वापर. "
+        "Update किंवा Forget करण्यापूर्वी संबंधित अचूक Memory Key शोध. "
+        "Key निश्चित नसेल तर स्पष्टीकरण विचार. "
+        "पासवर्ड, API Keys, OTP किंवा संवेदनशील माहिती जतन करू नकोस. "
+        "Memory Tool यशस्वी झाल्याशिवाय माहिती जतन, अपडेट किंवा हटवली असे सांगू नकोस. "
+    )
+
     memory = load_json(MEMORY_FILE, {})
     if isinstance(memory, dict) and memory:
         context = "\\n".join(
-            "- " + str(v) for v in list(memory.values())[:10]
-        )[:600]
+            "- " + str(k) + ": " + str(v)
+            for k, v in list(memory.items())[-20:]
+        )[:2000]
         prompt += "\\nलक्षात ठेवलेली माहिती:\\n" + context
+
+    prompt += "वापरकर्त्याने कोणत्याही भाषेत प्रश्न विचारला तरी उत्तर नेहमी सोप्या, शुद्ध आणि नैसर्गिक मराठीत दे. प्रश्नाचा अर्थ आणि संदर्भ समजून घे; हिंदी किंवा इंग्रजीत उत्तर देऊ नकोस. आवश्यक तांत्रिक शब्दांसाठीच इंग्रजी शब्द वापर. वापरकर्त्याने भाषांतर स्पष्टपणे मागितल्यासच दुसऱ्या भाषेत मजकूर दे.\n"
     return prompt
 
+
+def save_memory_item(key, value):
+    if not isinstance(key, str) or not isinstance(value, str):
+        return {"error": "Memory माहिती अवैध आहे."}
+
+    key = key.strip()[:80]
+    value = " ".join(value.strip().split())[:500]
+
+    if not key or not value:
+        return {"error": "Memory Key आणि Value आवश्यक आहेत."}
+
+    memory = load_json(MEMORY_FILE, {})
+    if not isinstance(memory, dict):
+        memory = {}
+
+    normalized_value = " ".join(
+        re.sub(r"[^\w\s]", " ", value.casefold()).split()
+    )
+
+    for existing_key, existing_value in memory.items():
+        if not isinstance(existing_value, str):
+            continue
+
+        existing_normalized = " ".join(
+            re.sub(r"[^\w\s]", " ", existing_value.casefold()).split()
+        )
+        if existing_normalized == normalized_value:
+            if existing_key == key:
+                return {"result": "हीच Memory आधीपासून जतन आहे. Duplicate तयार केली नाही."}
+            return {
+                "result": "ही माहिती आधीपासून '" + str(existing_key) +
+                          "' या Key खाली जतन आहे. Duplicate तयार केली नाही."
+            }
+
+    if key in memory:
+        return {
+            "error": "ही Key आधीपासून अस्तित्वात आहे. जुनी माहिती बदलण्यासाठी update_memory_item वापरा."
+        }
+
+    memory[key] = value
+    save_json(MEMORY_FILE, memory)
+    return {"result": "नवीन Memory सुरक्षितपणे जतन झाली."}
+
+def auto_save_explicit_preference(user_text):
+    if not isinstance(user_text, str):
+        return None
+    match = re.search(
+        r"(?:ही|हे)\s+(?:माझी|माझे|माझा)\s+कायम(?:ची|स्वरूपी)\s+(कार्यपद्धती|पसंती|सूचना)\s+आहे",
+        user_text
+    )
+    if not match:
+        return None
+    value = user_text[:match.start()].strip(" \t\n\"'“”‘’.,।")
+    if not value or len(value) > 500:
+        return None
+    if re.search(r"password|api.?key|otp|पासवर्ड|गुप्त.?कळ", value, re.I):
+        return None
+    key = {
+        "कार्यपद्धती": "कामाची-पद्धत",
+        "पसंती": "कायमची-पसंती",
+        "सूचना": "कायमची-सूचना"
+    }[match.group(1)]
+    result = save_memory_item(key, value)
+    print("[SHIVAM AUTO MEMORY]", result)
+    return result
+
+
+def update_memory_item(key, value):
+    if not isinstance(key, str) or not isinstance(value, str):
+        return {"error": "Memory माहिती अवैध आहे."}
+    key = key.strip()
+    value = value.strip()[:500]
+    if not key or not value:
+        return {"error": "Memory Key आणि Value आवश्यक आहेत."}
+    memory = load_json(MEMORY_FILE, {})
+    if not isinstance(memory, dict) or key not in memory:
+        return {"error": "ही Memory Key सापडली नाही."}
+    memory[key] = value
+    save_json(MEMORY_FILE, memory)
+    return {"result": "Memory यशस्वीपणे अपडेट झाली."}
+
+
+def forget_memory_item(key):
+    if not isinstance(key, str) or not key.strip():
+        return {"error": "अचूक Memory Key आवश्यक आहे."}
+    key = key.strip()
+    memory = load_json(MEMORY_FILE, {})
+    if not isinstance(memory, dict) or key not in memory:
+        return {"error": "ही Memory Key सापडली नाही."}
+    del memory[key]
+    save_json(MEMORY_FILE, memory)
+    return {"result": "निवडलेली Memory हटवली आहे."}
 
 def load_history():
     data = load_json(HISTORY_FILE, [])
@@ -225,8 +440,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
         elif self.path == "/health":
             self.send_json(200, {
                 "status": "online",
-                "name": "JARVIS",
-                "message": "JARVIS API Server चालू आहे."
+                "name": "SHIVAM",
+                "message": "SHIVAM API Server चालू आहे."
             })
         elif self.path == "/v1/models":
             api_key = os.getenv("OPENROUTER_API_KEY")
@@ -258,12 +473,20 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         "owned_by": model.get("id", "openrouter").split("/")[0],
                         "name": model.get("name", model["id"])
                     })
-                self.send_json(200, {"object": "list", "data": models})
+                result = {"object": "list", "data": models}
+                if len(models) > 1:
+                    save_json(MODELS_CACHE_FILE, result)
+                self.send_json(200, result)
             except Exception as exc:
-                self.send_json(502, {
-                    "error": "OpenRouter model catalog मिळवता आला नाही",
-                    "details": str(exc)[:250]
-                })
+                cached = load_json(MODELS_CACHE_FILE, None)
+                if isinstance(cached, dict) and isinstance(cached.get("data"), list) and cached["data"]:
+                    print("[SHIVAM] शेवटची जतन केलेली Model List वापरत आहे.")
+                    self.send_json(200, cached)
+                else:
+                    self.send_json(502, {
+                        "error": "Model Catalog आणि Cache दोन्ही उपलब्ध नाहीत",
+                        "details": str(exc)[:250]
+                    })
         elif self.path == "/v1/tools":
             self.send_json(200, {
                 "tools": get_available_tools()
@@ -497,9 +720,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": "User message आवश्यक आहे"})
                 return
 
+            auto_save_explicit_preference(conversation[-1]["content"])
             messages = [{"role": "system", "content": build_system_prompt()}]
             messages.extend(conversation)
-
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
             model_id = {"anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
 
@@ -581,6 +804,53 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "save_memory_item",
+                        "description": "वापरकर्त्याने स्पष्टपणे सांगितलेली दीर्घकाळ उपयोगी पसंती किंवा प्रोजेक्टची माहिती जतन करा. पासवर्ड, API keys, OTP किंवा संवेदनशील माहिती जतन करू नका.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "key": {"type": "string", "description": "माहितीचा विषय, उदा. भाषा-पसंती"},
+                                "value": {"type": "string", "description": "जतन करायची संपूर्ण माहिती, उदा. नेहमी सोप्या मराठीत उत्तर द्या"}
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "update_memory_item",
+                        "description": "आधीपासून जतन केलेली Memory वापरकर्त्याच्या स्पष्ट विनंतीनुसार अपडेट करा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "key": {"type": "string", "description": "अपडेट करायच्या Memory ची अचूक Key"},
+                                "value": {"type": "string", "description": "नवीन माहिती"}
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "forget_memory_item",
+                        "description": "वापरकर्त्याने स्पष्टपणे सांगितलेली विशिष्ट Memory अचूक Key वापरून हटवा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "key": {"type": "string", "description": "हटवायच्या Memory ची अचूक Key"}
+                            },
+                            "required": ["key"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_available_tools",
                         "description": "JARVIS ची उपलब्ध Tools यादी मिळवा.",
                         "parameters": {
@@ -599,7 +869,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 "temperature": request.get("temperature", 0.7),
                 "tools": tool_specs,
                 "tool_choice": "auto",
-                "max_tokens": min(int(request.get("max_tokens", 150)), 150)
+                "max_tokens": 8192,
+                "reasoning": {"effort": "low"}
             }
 
             headers = {
@@ -638,6 +909,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
                     answer = ""
                     pending_calls = {}
+                    last_chunk = None
 
                     for line in upstream.iter_lines():
                         if not line.startswith("data:"):
@@ -649,6 +921,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
                         try:
                             chunk = json.loads(data)
+                            last_chunk = chunk
                             if chunk.get("model"):
                                 provider_model = chunk["model"]
                                 upstream.extensions["jarvis_provider_model"] = provider_model
@@ -684,18 +957,49 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                         item["function"]["name"] += function["name"]
                                     if function.get("arguments"):
                                         item["function"]["arguments"] += function["arguments"]
-                        except Exception:
-                            pass
+                        except Exception as stream_error:
+                            print("[SHIVAM STREAM PARSE ERROR]", repr(stream_error))
+                            print("[SHIVAM STREAM DATA]", data[:1500])
 
-                        self.wfile.write(
-                            ("data: " + data + "\n\n").encode("utf-8")
-                        )
+                        try:
+                            outgoing = json.loads(data)
+                            outgoing_choices = outgoing.get('choices', [])
+                            for outgoing_choice in outgoing_choices:
+                                outgoing_delta = outgoing_choice.get('delta', {})
+                                if isinstance(outgoing_delta, dict):
+                                    outgoing_delta.pop('content', None)
+                                    outgoing_delta.pop('reasoning', None)
+                                    outgoing_delta.pop('reasoning_details', None)
+                                outgoing.pop('reasoning', None)
+                                outgoing.pop('reasoning_details', None)
+                            has_payload = (not outgoing_choices) or any(
+                                bool(c.get('delta')) or c.get('finish_reason') is not None
+                                for c in outgoing_choices
+                            )
+                            if has_payload:
+                                self.wfile.write(('data: ' + json.dumps(outgoing, ensure_ascii=False) + '\n\n').encode('utf-8'))
+                                self.wfile.flush()
+                        except Exception:
+                            self.wfile.write(('data: ' + data + '\n\n').encode('utf-8'))
+                            self.wfile.flush()
+
+                    answer = correct_marathi(answer)
+                    if answer:
+                        corrected_chunk = {'choices': [{'delta': {'content': answer}}]}
+                        self.wfile.write(('data: ' + json.dumps(corrected_chunk, ensure_ascii=False) + '\n\n').encode('utf-8'))
                         self.wfile.flush()
 
                     calls = [
                         pending_calls[index]
                         for index in sorted(pending_calls)
                     ][:3]
+
+                    print("[SHIVAM] निवडलेले मॉडेल:", model_id)
+                    print("[SHIVAM] मिळालेले Tool Calls:", json.dumps(calls, ensure_ascii=False))
+                    if not answer and not calls:
+                        print("[SHIVAM EMPTY RESPONSE DETAILS]", json.dumps(last_chunk, ensure_ascii=False)[:3000])
+
+                    final_answer_start = len(answer)
 
                     if calls:
                         messages.append({
@@ -749,6 +1053,20 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                             )
                                         }
                                     }
+                            elif tool_name == "save_memory_item":
+                                result = save_memory_item(
+                                    arguments.get("key"),
+                                    arguments.get("value")
+                                )
+                            elif tool_name == "update_memory_item":
+                                result = update_memory_item(
+                                    arguments.get("key"),
+                                    arguments.get("value")
+                                )
+                            elif tool_name == "forget_memory_item":
+                                result = forget_memory_item(
+                                    arguments.get("key")
+                                )
                             else:
                                 result = execute_tool(tool_name, arguments)
 
@@ -781,9 +1099,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             "messages": messages,
                             "stream": True,
                             "temperature": request.get("temperature", 0.7),
-                            "max_tokens": min(int(request.get("max_tokens", 150)), 150)
+                            "max_tokens": 2048
                         }
 
+                        final_answer_start = len(answer)
                         with openrouter_stream(client, headers, final_payload) as final_upstream:
 
                             if final_upstream.status_code != 200:
@@ -801,9 +1120,6 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                         "finish_reason": "stop"
                                     }]
                                 }
-                                self.wfile.write(
-                                    ("data: " + json.dumps(error_chunk, ensure_ascii=False) + "\n\n").encode("utf-8")
-                                )
                             else:
                                 for line in final_upstream.iter_lines():
                                     if not line.startswith("data:"):
@@ -820,13 +1136,36 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                             content = choices[0].get("delta", {}).get("content")
                                             if isinstance(content, str):
                                                 answer += content
-                                    except Exception:
-                                        pass
+                                    except Exception as stream_error:
+                                        print("[SHIVAM FINAL STREAM PARSE ERROR]", repr(stream_error))
+                                        print("[SHIVAM FINAL STREAM DATA]", data[:1500])
 
-                                    self.wfile.write(
-                                        ("data: " + data + "\n\n").encode("utf-8")
-                                    )
-                                    self.wfile.flush()
+
+                    final_part = correct_marathi(answer[final_answer_start:])
+                    answer = answer[:final_answer_start] + final_part
+                    if final_part:
+                        corrected_chunk = {"choices": [{"delta": {"content": final_part}}]}
+                        self.wfile.write(("data: " + json.dumps(corrected_chunk, ensure_ascii=False) + "\n\n").encode("utf-8"))
+                        self.wfile.flush()
+
+                    if not answer:
+                        fallback = "माफ करा, यावेळी पूर्ण उत्तर मिळाले नाही."
+                        tool_result = locals().get("result")
+                        if isinstance(tool_result, dict):
+                            detail = tool_result.get("result")
+                            if isinstance(detail, str) and detail.strip():
+                                fallback = detail
+                        answer = correct_marathi(fallback)
+                        error_chunk = {
+                            "choices": [{
+                                "delta": {"content": answer},
+                                "finish_reason": "stop"
+                            }]
+                        }
+                        self.wfile.write(
+                            ("data: " + json.dumps(error_chunk, ensure_ascii=False) + "\n\n").encode("utf-8")
+                        )
+                        self.wfile.flush()
 
                     self.wfile.write(b"data: [DONE]\n\n")
                     self.wfile.flush()
@@ -852,10 +1191,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer((HOST, PORT), JarvisAPI)
-    print(f"JARVIS API Server: http://{HOST}:{PORT}")
+    print(f"SHIVAM API Server: http://{HOST}:{PORT}")
     print("Health Check: http://127.0.0.1:8000/health")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nJARVIS API Server बंद झाला.")
+        print("\nSHIVAM API Server बंद झाला.")
         server.server_close()
