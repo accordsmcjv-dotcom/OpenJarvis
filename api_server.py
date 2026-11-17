@@ -171,6 +171,11 @@ def openrouter_stream(client, headers, payload):
             print("[SHIVAM] OpenRouter Free Model वापरत आहे.")
             response = send_with_retry(OPENROUTER_URL, headers, body, "OPENROUTER FREE")
 
+    except httpx.TimeoutException as exc:
+        print("[SHIVAM] OpenRouter timeout:", repr(exc))
+        if not os.getenv("GROQ_API_KEY"):
+            raise
+        response = None
     except httpx.TransportError as exc:
         print("[SHIVAM] OpenRouter network failure:", repr(exc))
         if not os.getenv("GROQ_API_KEY"):
@@ -194,10 +199,13 @@ def openrouter_stream(client, headers, payload):
             "Authorization": "Bearer " + os.getenv("GROQ_API_KEY"),
             "Content-Type": "application/json"
         }
-        response = send_with_retry(
-            "https://api.groq.com/openai/v1/chat/completions",
-            groq_headers, groq_body, "GROQ"
-        )
+        try:
+            response = send_with_retry(
+                "https://api.groq.com/openai/v1/chat/completions",
+                groq_headers, groq_body, "GROQ"
+            )
+        except (httpx.TransportError, httpx.TimeoutException) as exc:
+            raise RuntimeError("OpenRouter आणि Groq दोन्ही सेवा उपलब्ध नाहीत: " + str(exc)) from exc
         if response.status_code != 200:
             error_text = response.read().decode("utf-8", errors="replace")
             response.close()
