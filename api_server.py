@@ -741,6 +741,23 @@ def save_history(history):
         print("[SHIVAM HISTORY] Save error:", str(exc))
 
 
+
+def protect_conversation_context(history, max_messages=20, max_chars=24000):
+    history = normalize_history(history)
+    selected = []
+    total = 0
+
+    for message in reversed(history):
+        size = len(message.get("content", ""))
+        if selected and (len(selected) >= max_messages or total + size > max_chars):
+            break
+        selected.append(message)
+        total += size
+
+    selected.reverse()
+    return selected
+
+
 def get_badnera_weather(arguments):
     """बदनेरा, अमरावतीचे प्रत्यक्ष हवामान Open-Meteo वरून मिळवा."""
     forecast_type = arguments.get("forecast_type", "current")
@@ -1108,6 +1125,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
             save_history(conversation)
             auto_save_explicit_preference(conversation[-1]["content"])
+            conversation = protect_conversation_context(conversation)
             messages = [{"role": "system", "content": build_system_prompt()}]
             messages.extend(conversation)
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
