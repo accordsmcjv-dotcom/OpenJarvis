@@ -411,8 +411,48 @@ def forget_memory_item(key):
 
 
 
+def memory_maintenance():
+    """फक्त अवैध नोंदी आणि अनाथ Category नोंदी साफ करा."""
+    memory = load_json(MEMORY_FILE, {})
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+
+    if not isinstance(memory, dict):
+        memory = {}
+    if not isinstance(categories, dict):
+        categories = {}
+
+    clean_memory = {
+        key: value for key, value in memory.items()
+        if isinstance(key, str) and key.strip()
+        and isinstance(value, str) and value.strip()
+    }
+    clean_categories = {
+        key: value for key, value in categories.items()
+        if key in clean_memory
+    }
+
+    removed = len(memory) - len(clean_memory)
+    removed_categories = len(categories) - len(clean_categories)
+
+    if removed:
+        save_json(MEMORY_FILE, clean_memory)
+    if removed_categories:
+        save_json(MEMORY_CATEGORIES_FILE, clean_categories)
+
+    return {
+        "removed_invalid": removed,
+        "removed_orphan_categories": removed_categories
+    }
+
+
 def search_memory(query="", category="", limit=10):
     allowed_categories = ("preference", "project", "personal_context", "general")
+    importance = {
+        "preference": 4,
+        "project": 3,
+        "personal_context": 2,
+        "general": 1
+    }
 
     if not isinstance(query, str) or not isinstance(category, str):
         return {"error": "शोध माहिती अवैध आहे."}
@@ -422,7 +462,6 @@ def search_memory(query="", category="", limit=10):
 
     if category and category not in allowed_categories:
         return {"error": "Memory Category अवैध आहे."}
-
     if not query and not category:
         return {"error": "शोधण्यासाठी Query किंवा Category आवश्यक आहे."}
 
@@ -431,6 +470,7 @@ def search_memory(query="", category="", limit=10):
     except (TypeError, ValueError):
         limit = 10
 
+    cleanup = memory_maintenance()
     memory = load_json(MEMORY_FILE, {})
     categories = load_json(MEMORY_CATEGORIES_FILE, {})
 
@@ -450,20 +490,24 @@ def search_memory(query="", category="", limit=10):
 
         if category and item_category != category:
             continue
-
         if query and query not in (str(key) + " " + value).casefold():
             continue
 
         matches.append({
             "key": str(key),
             "value": value,
-            "category": item_category
+            "category": item_category,
+            "importance": importance[item_category]
         })
 
-        if len(matches) >= limit:
-            break
+    matches.sort(key=lambda item: item["importance"], reverse=True)
 
-    return {"count": len(matches), "matches": matches}
+    return {
+        "count": min(len(matches), limit),
+        "matches": matches[:limit],
+        "cleanup": cleanup
+    }
+
 
 def load_history():
     data = load_json(HISTORY_FILE, [])
