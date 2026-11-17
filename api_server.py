@@ -220,7 +220,6 @@ def openrouter_stream(client, headers, payload):
     finally:
         response.close()
 
-nse.close()
 
 
 
@@ -742,6 +741,37 @@ def save_history(history):
 
 
 
+
+def build_context_summary(history):
+    history = normalize_history(history)
+    older = history[:-6]
+    parts = []
+    total = 0
+    for item in older:
+        content = " ".join(item["content"].split())[:350]
+        label = "वापरकर्ता" if item["role"] == "user" else "SHIVAM"
+        part = label + ": " + content
+        if total + len(part) > 3000:
+            break
+        parts.append(part)
+        total += len(part)
+    return "\n".join(parts)
+
+
+def record_recovery_diagnostic(stage, exc):
+    try:
+        entry = {
+            "time": time.time(),
+            "stage": str(stage)[:60],
+            "error_type": type(exc).__name__
+        }
+        path = os.path.join(BASE_DIR, "recovery_diagnostics.jsonl")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as log_error:
+        print("[SHIVAM DIAGNOSTICS] Log error:", type(log_error).__name__)
+
+
 def protect_conversation_context(history, max_messages=20, max_chars=24000):
     history = normalize_history(history)
     selected = []
@@ -1127,6 +1157,12 @@ class JarvisAPI(BaseHTTPRequestHandler):
             auto_save_explicit_preference(conversation[-1]["content"])
             conversation = protect_conversation_context(conversation)
             messages = [{"role": "system", "content": build_system_prompt()}]
+            context_summary = build_context_summary(conversation)
+            if context_summary:
+                messages.append({
+                    "role": "system",
+                    "content": "मागील संभाषणाचा संक्षिप्त संदर्भ:\n" + context_summary
+                })
             messages.extend(conversation)
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
             model_id = {"anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
@@ -1639,7 +1675,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             print("[JARVIS API] Client disconnected")
         except Exception as e:
-            print("[JARVIS API] Error:", str(e))
+            print("[SHIVAM API] Error:", type(e).__name__)
+            record_recovery_diagnostic("API_HANDLER", e)
             try:
                 self.send_json(500, {"error": "SHIVAM API मध्ये अनपेक्षित अडचण आली. कृपया पुन्हा प्रयत्न करा."})
             except Exception:
