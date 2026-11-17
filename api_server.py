@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import json
 import os
+import math
 import ast
 import asyncio
 import tempfile
@@ -455,6 +456,46 @@ def memory_maintenance():
         "removed_invalid": removed,
         "removed_orphan_categories": removed_categories
     }
+
+
+def smart_calculate(expression):
+    if not isinstance(expression, str) or not expression.strip() or len(expression) > 200:
+        raise ValueError("गणिती उदाहरण अवैध आहे.")
+    digit_map = str.maketrans("०१२३४५६७८९", "0123456789")
+    expression = expression.translate(digit_map)
+    expression = expression.replace("^", "**").replace("×", "*").replace("÷", "/").replace(",", "")
+
+    def evaluate(node):
+        if isinstance(node, ast.Expression):
+            return evaluate(node.body)
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            return node.value
+        if isinstance(node, ast.BinOp):
+            a, b = evaluate(node.left), evaluate(node.right)
+            if isinstance(node.op, ast.Pow) and abs(b) > 100:
+                raise ValueError("घातांक खूप मोठा आहे.")
+            operations = {
+                ast.Add: lambda: a + b, ast.Sub: lambda: a - b,
+                ast.Mult: lambda: a * b, ast.Div: lambda: a / b,
+                ast.FloorDiv: lambda: a // b, ast.Mod: lambda: a % b,
+                ast.Pow: lambda: a ** b
+            }
+            operation = operations.get(type(node.op))
+            if operation is None:
+                raise ValueError("अवैध गणिती क्रिया.")
+            return operation()
+        if isinstance(node, ast.UnaryOp):
+            value = evaluate(node.operand)
+            if isinstance(node.op, ast.USub):
+                return -value
+            if isinstance(node.op, ast.UAdd):
+                return value
+        raise ValueError("हे गणित समजले नाही.")
+
+    result = evaluate(ast.parse(expression, mode="eval"))
+    if type(result) not in (int, float) or not math.isfinite(result) or abs(result) > 1e100:
+        raise ValueError("उत्तर मर्यादेबाहेर आहे.")
+    return result
 
 
 def search_memory(query="", category="", limit=10):
@@ -965,6 +1006,21 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "smart_calculate",
+                        "description": "बेरीज, वजाबाकी, गुणाकार, भागाकार, टक्केवारी, वर्गमूळ आणि इतर गणिती उदाहरणे अचूक सोडवा. गणिती प्रश्न आल्यास हे Tool वापरा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "expression": {"type": "string", "description": "गणिती उदाहरण; उदा. २५०*१८/१००"}
+                            },
+                            "required": ["expression"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_system_info",
                         "description": "Android डिव्हाइस आणि Python ची माहिती मिळवा.",
                         "parameters": {
@@ -1244,6 +1300,11 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             started = __import__("time").time()
                             if arguments is None:
                                 result = {"error": "Tool arguments अवैध आहेत."}
+                            elif tool_name == "smart_calculate":
+                                try:
+                                    result = {"expression": arguments.get("expression", ""), "answer": smart_calculate(arguments.get("expression", ""))}
+                                except Exception as exc:
+                                    result = {"error": str(exc)}
                             elif tool_name == "get_weather":
                                 result = get_badnera_weather(arguments)
                             elif tool_name == "open_android_app":
