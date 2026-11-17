@@ -4,6 +4,7 @@ import os
 import math
 import ast
 import asyncio
+import time
 import tempfile
 import httpx
 from contextlib import contextmanager
@@ -119,31 +120,65 @@ def correct_marathi(text):
         text = text.replace(wrong, right)
 
     text = re.sub(r"[ \\t]{2,}", " ", text)
-    return text
-
-@contextmanager
+    r@contextmanager
 def openrouter_stream(client, headers, payload):
     body = dict(payload)
-    response = client.send(
-        client.build_request("POST", OPENROUTER_URL, headers=headers, json=body),
-        stream=True
-    )
 
-    if response.status_code == 402 and body.get("model") != "openrouter/free":
-        response.close()
-        body["model"] = "openrouter/free"
-        body["max_tokens"] = 8192
-        body["reasoning"] = {"effort": "low"}
-        if body.get("messages") and body["messages"][0].get("role") == "system":
-            body["messages"][0]["content"] += "\nसध्या प्रत्यक्ष वापरलेला मॉडेल पर्याय OpenRouter Free Model आहे. त्याला OpenRouter Auto म्हणू नकोस."
-        print("[SHIVAM] OpenRouter Free Model वापरत आहे.")
-        response = client.send(
-            client.build_request("POST", OPENROUTER_URL, headers=headers, json=body),
-            stream=True
-        )
+    def send_with_retry(url, req_headers, req_body, provider):
+        for attempt in range(3):
+            try:
+                response = client.send(
+                    client.build_request(
+                        "POST", url,
+                        headers=req_headers,
+                        json=req_body
+                    ),
+                    stream=True
+                )
+            except httpx.TransportError as exc:
+                print(f"[SHIVAM {provider} RETRY] {attempt + 1}/3: {exc}")
+                if attempt == 2:
+                    raise
+                time.sleep(attempt + 1)
+                continue
 
-    if response.status_code == 429 and os.getenv("GROQ_API_KEY"):
-        response.close()
+            if response.status_code in (500, 502, 503, 504) and attempt < 2:
+                print(f"[SHIVAM {provider} RETRY] HTTP {response.status_code}, {attempt + 1}/3")
+                response.close()
+                time.sleep(attempt + 1)
+                continue
+            return response
+
+        raise RuntimeError(provider + " request failed")
+
+    response = None
+    try:
+        response = send_with_retry(OPENROUTER_URL, headers, body, "OPENROUTER")
+
+        if response.status_code == 402 and body.get("model") != "openrouter/free":
+            response.close()
+            body["model"] = "openrouter/free"
+            body["max_tokens"] = 8192
+            body["reasoning"] = {"effort": "low"}
+            if body.get("messages") and body["messages"][0].get("role") == "system":
+                body["messages"][0]["content"] += "\nसध्या प्रत्यक्ष वापरलेला मॉडेल पर्याय OpenRouter Free Model आहे. त्याला OpenRouter Auto म्हणू नकोस."
+            print("[SHIVAM] OpenRouter Free Model वापरत आहे.")
+            response = send_with_retry(OPENROUTER_URL, headers, body, "OPENROUTER FREE")
+
+    except httpx.TransportError as exc:
+        print("[SHIVAM] OpenRouter network failure:", repr(exc))
+        if not os.getenv("GROQ_API_KEY"):
+            raise
+        response = None
+
+    if response is None or (
+        response.status_code in (429, 500, 502, 503, 504)
+        and os.getenv("GROQ_API_KEY")
+    ):
+        if response is not None:
+            print("[SHIVAM] OpenRouter अनुपलब्ध. Groq पर्यायी सेवा वापरत आहे.")
+            response.close()
+
         groq_body = dict(body)
         groq_body["model"] = "openai/gpt-oss-20b"
         groq_body["max_tokens"] = 512
@@ -153,15 +188,9 @@ def openrouter_stream(client, headers, payload):
             "Authorization": "Bearer " + os.getenv("GROQ_API_KEY"),
             "Content-Type": "application/json"
         }
-        print("[SHIVAM] OpenRouter मर्यादा संपली. Groq पर्यायी सेवा वापरत आहे.")
-        response = client.send(
-            client.build_request(
-                "POST",
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=groq_headers,
-                json=groq_body
-            ),
-            stream=True
+        response = send_with_retry(
+            "https://api.groq.com/openai/v1/chat/completions",
+            groq_headers, groq_body, "GROQ"
         )
         if response.status_code != 200:
             error_text = response.read().decode("utf-8", errors="replace")
@@ -176,6 +205,8 @@ def openrouter_stream(client, headers, payload):
         yield response
     finally:
         response.close()
+
+nse.close()
 
 def load_json(path, default):
     try:
