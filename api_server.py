@@ -686,29 +686,59 @@ def search_memory(query="", category="", limit=10):
     }
 
 
-def load_history():
-    data = load_json(HISTORY_FILE, [])
-    if not isinstance(data, list):
+def normalize_history(history):
+    if not isinstance(history, list):
         return []
 
-    return [
-        m for m in data
-        if isinstance(m, dict)
-        and m.get("role") in ("user", "assistant")
-        and isinstance(m.get("content"), str)
-    ][-20:]
+    valid = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role not in ("user", "assistant"):
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+
+        message = {"role": role, "content": content}
+        if valid and valid[-1] == message:
+            continue
+        valid.append(message)
+
+    return valid[-20:]
+
+
+def load_history():
+    return normalize_history(load_json(HISTORY_FILE, []))
 
 
 def save_history(history):
-    if not isinstance(history, list):
-        return
-    valid = [
-        m for m in history
-        if isinstance(m, dict)
-        and m.get("role") in ("user", "assistant")
-        and isinstance(m.get("content"), str)
-    ]
-    save_json(HISTORY_FILE, valid[-20:])
+    valid = normalize_history(history)
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=BASE_DIR,
+            prefix=".chat_history_",
+            suffix=".tmp",
+            delete=False
+        ) as temp:
+            temp_path = temp.name
+            json.dump(valid, temp, ensure_ascii=False, indent=2)
+            temp.flush()
+            os.fsync(temp.fileno())
+
+        os.replace(temp_path, HISTORY_FILE)
+    except Exception as exc:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        print("[SHIVAM HISTORY] Save error:", str(exc))
 
 
 def get_badnera_weather(arguments):
@@ -1076,6 +1106,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": "User message आवश्यक आहे"})
                 return
 
+            save_history(conversation)
             auto_save_explicit_preference(conversation[-1]["content"])
             messages = [{"role": "system", "content": build_system_prompt()}]
             messages.extend(conversation)
