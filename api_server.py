@@ -223,6 +223,30 @@ def openrouter_stream(client, headers, payload):
 nse.close()
 
 
+
+def friendly_provider_error(status_code, error_text="", provider="AI"):
+    messages = {
+        401: "AI सेवा वापरण्यासाठी API Key योग्य नाही. API Key तपासा.",
+        403: "AI सेवेकडून प्रवेश नाकारला गेला. API परवानग्या तपासा.",
+        402: "AI सेवेचा उपलब्ध वापर किंवा क्रेडिट संपला आहे.",
+        404: "निवडलेले AI मॉडेल सध्या उपलब्ध नाही.",
+        408: "AI सेवेकडून उत्तर मिळण्यास वेळ लागला. पुन्हा प्रयत्न करा.",
+        429: "AI सेवेची वापर मर्यादा पूर्ण झाली आहे. थोड्या वेळाने पुन्हा प्रयत्न करा.",
+        500: "AI सेवेमध्ये अंतर्गत अडचण आहे. पुन्हा प्रयत्न करा.",
+        502: "AI सेवा सध्या योग्य प्रतिसाद देत नाही.",
+        503: "AI सेवा तात्पुरती अनुपलब्ध आहे.",
+        504: "AI सेवेकडून उत्तर मिळण्यास खूप वेळ लागला."
+    }
+    try:
+        code = int(status_code)
+    except (TypeError, ValueError):
+        code = 0
+    return messages.get(
+        code,
+        "AI कडून उत्तर मिळवताना अडचण आली. कृपया पुन्हा प्रयत्न करा."
+    )
+
+
 def safe_stream_lines(response, stage):
     completed = False
     interrupted = False
@@ -1250,8 +1274,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         error_text = upstream.read().decode("utf-8", "replace")
                         print("[OPENROUTER ERROR]", upstream.status_code, error_text[:1000])
                         self.send_json(502, {
-                            "error": "OpenRouter API error",
-                            "details": error_text[:1000]
+                            "error": friendly_provider_error(
+                                upstream.status_code, error_text,
+                                upstream.extensions.get("jarvis_model", "AI")
+                            )
                         })
                         return
 
@@ -1485,10 +1511,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             if final_upstream.status_code != 200:
                                 error_text = final_upstream.read().decode("utf-8", "replace")
                                 print("[OPENROUTER FINAL ERROR]", final_upstream.status_code, error_text[:1000])
-                                fallback = (
-                                    result.get("result", {}).get("message", "Tool प्रक्रिया पूर्ण झाली.")
-                                    if isinstance(result, dict) and isinstance(result.get("result"), dict)
-                                    else "Tool प्रक्रिया पूर्ण झाली."
+                                fallback = friendly_provider_error(
+                                    final_upstream.status_code, error_text,
+                                    final_upstream.extensions.get("jarvis_model", "AI")
                                 )
                                 answer += fallback
                                 error_chunk = {
@@ -1567,7 +1592,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
         except Exception as e:
             print("[JARVIS API] Error:", str(e))
             try:
-                self.send_json(500, {"error": "JARVIS API error"})
+                self.send_json(500, {"error": "SHIVAM API मध्ये अनपेक्षित अडचण आली. कृपया पुन्हा प्रयत्न करा."})
             except Exception:
                 pass
 
