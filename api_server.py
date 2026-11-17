@@ -135,6 +135,12 @@ def openrouter_stream(client, headers, payload):
                     ),
                     stream=True
                 )
+            except httpx.TimeoutException as exc:
+                print(f"[SHIVAM {provider} TIMEOUT RETRY] {attempt + 1}/3: {exc}")
+                if attempt == 2:
+                    raise
+                time.sleep(attempt + 1)
+                continue
             except httpx.TransportError as exc:
                 print(f"[SHIVAM {provider} RETRY] {attempt + 1}/3: {exc}")
                 if attempt == 2:
@@ -222,6 +228,17 @@ def safe_stream_lines(response, stage):
                         continue
                     completed = True
                 yield line
+        except httpx.TimeoutException as exc:
+            interrupted = True
+            print(f"[SHIVAM STREAM TIMEOUT] {stage}: {exc!r}")
+            warning = {
+                "choices": [{
+                    "delta": {
+                        "content": "\\n[उत्तर मिळण्यास वेळ लागला आणि प्रवाह थांबला. उपलब्ध उत्तर येथे दिले आहे.]"
+                    }
+                }]
+            }
+            yield "data: " + json.dumps(warning, ensure_ascii=False)
         except (httpx.TransportError, OSError, TimeoutError) as exc:
             interrupted = True
             print(f"[SHIVAM STREAM INTERRUPTED] {stage}: {exc!r}")
