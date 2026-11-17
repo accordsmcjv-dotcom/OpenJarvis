@@ -1084,7 +1084,7 @@ def build_context_summary(history):
     older = history[:-6]
     parts = []
     total = 0
-    for item in older:
+    for item in reversed(older):
         content = " ".join(item["content"].split())[:350]
         label = "वापरकर्ता" if item["role"] == "user" else "SHIVAM"
         part = label + ": " + content
@@ -1092,17 +1092,23 @@ def build_context_summary(history):
             break
         parts.append(part)
         total += len(part)
+    parts.reverse()
     return "\n".join(parts)
 
 
 def record_recovery_diagnostic(stage, exc):
     try:
+        path = os.path.join(BASE_DIR, "recovery_diagnostics.jsonl")
+        if os.path.exists(path) and os.path.getsize(path) >= 1024 * 1024:
+            backup = path + ".1"
+            if os.path.exists(backup):
+                os.remove(backup)
+            os.replace(path, backup)
         entry = {
             "time": time.time(),
             "stage": str(stage)[:60],
             "error_type": type(exc).__name__
         }
-        path = os.path.join(BASE_DIR, "recovery_diagnostics.jsonl")
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as log_error:
@@ -2099,13 +2105,13 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         )
                         self.wfile.flush()
 
-                    self.wfile.write(b"data: [DONE]\n\n")
-                    self.wfile.flush()
-
                     if answer:
                         save_history(conversation + [
                             {"role": "assistant", "content": answer}
                         ])
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
+
 
 
         except (BrokenPipeError, ConnectionResetError):
