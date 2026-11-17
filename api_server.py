@@ -1425,14 +1425,23 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         self.wfile.write(("data: " + json.dumps(corrected_chunk, ensure_ascii=False) + "\n\n").encode("utf-8"))
                         self.wfile.flush()
 
-                    if not answer:
+                    final_response_missing = bool(calls) and not answer[final_answer_start:].strip()
+                    if not answer.strip() or final_response_missing:
                         fallback = "माफ करा, यावेळी पूर्ण उत्तर मिळाले नाही."
                         tool_result = locals().get("result")
                         if isinstance(tool_result, dict):
-                            detail = tool_result.get("result")
+                            detail = tool_result.get("answer")
+                            if not detail:
+                                detail = tool_result.get("result")
+                            if isinstance(detail, dict):
+                                detail = detail.get("message")
                             if isinstance(detail, str) and detail.strip():
                                 fallback = detail
-                        answer = correct_marathi(fallback)
+                        fallback = correct_marathi(str(fallback))
+                        if answer.strip():
+                            answer = answer.rstrip() + "\n" + fallback
+                        else:
+                            answer = fallback
                         error_chunk = {
                             "choices": [{
                                 "delta": {"content": answer},
