@@ -81,6 +81,14 @@ def correct_marathi(text):
         "तुम्ही काय म्हणतो": "तुम्ही काय म्हणता",
         "कृपया करून": "कृपया",
         "माझे नाव आहे शिवम": "माझे नाव शिवम आहे",
+
+        "मला मदत पाहिजे आहे": "मला मदत हवी आहे",
+        "मी प्रयत्न करत आहे": "मी प्रयत्न करीत आहे",
+        "तुम्ही मला सांगू शकता": "तुम्ही मला सांगू शकाल का?",
+        "हे मला माहिती नाही आहे": "हे मला माहीत नाही",
+        "माझ्याकडून चूक झाली आहे": "माझी चूक झाली आहे",
+        "तुम्हाला काय पाहिजे आहे": "तुम्हाला काय हवे आहे",
+
     }
 
     corrections.update({
@@ -455,6 +463,13 @@ def build_system_prompt():
         "Key निश्चित नसेल तर स्पष्टीकरण विचार. "
         "पासवर्ड, API Keys, OTP किंवा संवेदनशील माहिती जतन करू नकोस. "
         "Memory Tool यशस्वी झाल्याशिवाय माहिती जतन, अपडेट किंवा हटवली असे सांगू नकोस. "
+        "तथ्यात्मक प्रश्नांची उत्तरे देताना उपलब्ध पुरावा आणि खात्री यांचा विचार कर. "
+        "माहिती खात्रीशीर नसेल तर अनिश्चितता स्पष्ट सांग; अंदाजाला तथ्य म्हणून मांडू नकोस. "
+        "गणिती उत्तरासाठी उपलब्ध Calculator Tool वापर आणि त्याचा निकाल बदलू नकोस. "
+        "वेळ, हवामान, डिव्हाइस आणि Memory बाबत प्रत्यक्ष Tool निकालालाच प्राधान्य दे. "
+        "Tool अपयशी ठरल्यास कृती पूर्ण झाली असे सांगू नकोस. "
+        "वापरकर्त्याने दिलेली माहिती आणि तुझा निष्कर्ष यांत फरक स्पष्ट ठेव. "
+        "उत्तर प्रश्नापुरते नेमके, सुसंगत आणि अनावश्यक पुनरावृत्तीविरहित ठेव. "
     )
 
     memory = load_json(MEMORY_FILE, {})
@@ -2065,8 +2080,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 detail = tool_result.get("result")
                             if isinstance(detail, dict):
                                 detail = detail.get("message")
-                            if isinstance(detail, str) and detail.strip():
-                                fallback = detail
+                            if isinstance(detail, (str, int, float)) and not isinstance(detail, bool):
+                                if str(detail).strip():
+                                    fallback = str(detail)
                         fallback = correct_marathi(str(fallback))
                         if answer.strip():
                             answer = answer.rstrip() + "\n" + fallback
