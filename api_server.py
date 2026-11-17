@@ -338,6 +338,44 @@ def is_sensitive_memory(key, value):
     ))
 
 
+def validate_tool_arguments(tool_name, arguments, tool_specs):
+    if not isinstance(arguments, dict):
+        return "Tool Arguments अवैध आहेत."
+    spec = next((x.get("function", {}) for x in tool_specs
+                 if x.get("function", {}).get("name") == tool_name), None)
+    if not spec:
+        return "हे Tool उपलब्ध किंवा अनुमत नाही."
+    schema = spec.get("parameters", {})
+    props = schema.get("properties", {})
+    if schema.get("additionalProperties") is False and set(arguments) - set(props):
+        return "अनोळखी Tool Arguments आहेत."
+    for key in schema.get("required", []):
+        if key not in arguments:
+            return "आवश्यक Tool माहिती अपूर्ण आहे."
+    for key, value in arguments.items():
+        rule = props.get(key, {})
+        kind = rule.get("type")
+        valid = (
+            kind is None
+            or (kind == "string" and isinstance(value, str))
+            or (kind == "integer" and isinstance(value, int) and not isinstance(value, bool))
+            or (kind == "number" and isinstance(value, (int, float)) and not isinstance(value, bool))
+            or (kind == "boolean" and isinstance(value, bool))
+            or (kind == "object" and isinstance(value, dict))
+            or (kind == "array" and isinstance(value, list))
+        )
+        if not valid:
+            return "Tool मधील " + key + " चा प्रकार चुकीचा आहे."
+        if "enum" in rule and value not in rule["enum"]:
+            return "Tool मधील " + key + " साठी मूल्य अनुमत नाही."
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if "minimum" in rule and value < rule["minimum"]:
+                return key + " किमान मर्यादेपेक्षा कमी आहे."
+            if "maximum" in rule and value > rule["maximum"]:
+                return key + " कमाल मर्यादेपेक्षा जास्त आहे."
+    return None
+
+
 def classify_user_intent(text):
     """वापरकर्त्याच्या संदेशाचा प्राथमिक हेतू ओळखा."""
     value = str(text or "").casefold()
@@ -1470,6 +1508,15 @@ class JarvisAPI(BaseHTTPRequestHandler):
             )
 
 
+            messages[0]["content"] += (
+                "\\n\\nअचूकता नियम: आवश्यक तेव्हा उपलब्ध Tool वापर. "
+                "Tool चा निकाल मिळेपर्यंत कृती यशस्वी झाल्याचा दावा करू नकोस. "
+                "Tool Error किंवा अपूर्ण माहिती स्पष्ट सांग. "
+                "बनावट आकडे, Memory किंवा न केलेली कृती खरी म्हणून सांगू नकोस. "
+                "स्पष्ट मंजुरीशिवाय Android App उघडू नकोस. "
+                "उत्तर सोप्या, शुद्ध आणि नैसर्गिक मराठीत दे."
+            )
+
             tool_specs = [
                 {
                     "type": "function",
@@ -1694,6 +1741,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 }
             ]
 
+            allowed_tool_names = {item["function"]["name"] for item in tool_specs}
+
             payload = {
                 "model": model_id,
                 "messages": messages,
@@ -1867,85 +1916,83 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             self.wfile.flush()
 
                             started = __import__("time").time()
-                            if arguments is None:
-                                result = {"error": "Tool arguments अवैध आहेत."}
-                            elif tool_name == "smart_calculate":
-                                try:
-                                    result = {"expression": arguments.get("expression", ""), "answer": smart_calculate(arguments.get("expression", ""))}
-                                except Exception as exc:
-                                    result = {"error": str(exc)}
-                            elif tool_name == "get_weather":
-                                result = get_badnera_weather(arguments)
-                            elif tool_name == "open_android_app":
-                                app_name = arguments.get("app_name")
-                                if not isinstance(app_name, str):
-                                    result = {"error": "App नाव अवैध आहे."}
+                            argument_error = None
+                            if arguments is not None:
+                                if tool_name not in allowed_tool_names:
+                                    argument_error = "हे Tool उपलब्ध किंवा अनुमत नाही."
                                 else:
-                                    action = create_approval(app_name)
-                                    result = {
-                                        "result": {
-                                            "pending_approval": True,
-                                            "approval_id": action["id"],
-                                            "message": (
-                                                app_name + " उघडण्यासाठी मंजुरी मागितली आहे. "
-                                                "अजून App उघडलेले नाही. Approval Bell मधून मंजुरी द्या."
-                                            )
-                                        }
-                                    }
-                            elif tool_name == "search_memory":
-                                result = search_memory(
-                                    arguments.get("query", ""),
-                                    arguments.get("category", ""),
-                                    arguments.get("limit", 10)
-                                )
-                            elif tool_name == "save_memory_item":
-                                result = save_memory_item(
-                                    arguments.get("key"),
-                                    arguments.get("value"),
-                                    arguments.get("category", "auto")
-                                )
-                            elif tool_name == "update_memory_item":
-                                result = update_memory_item(
-                                    arguments.get("key"),
-                                    arguments.get("value")
-                                )
-                            elif tool_name == "forget_memory_item":
-                                result = forget_memory_item(
-                                    arguments.get("key")
-                                )
-                            elif tool_name == "memory_dashboard":
-                                result = memory_dashboard()
-                            elif tool_name == "detect_memory_conflicts":
-                                result = detect_memory_conflicts()
-                            elif tool_name == "recall_conversation_context":
-                                result = recall_conversation_context(
-                                    arguments.get("query", ""),
-                                    arguments.get("limit", 8)
-                                )
-                            elif tool_name == "preview_memory_backup":
-                                result = preview_memory_backup(arguments.get("filename", ""))
-                            elif tool_name == "memory_integrity_check":
-                                result = memory_integrity_check()
-                            elif tool_name == "list_memory_backups":
-                                result = list_memory_backups()
-                            else:
-                                result = execute_tool(tool_name, arguments)
+                                    argument_error = validate_tool_arguments(tool_name, arguments, tool_specs)
 
-                            latency = int(
-                                (__import__("time").time() - started) * 1000
-                            )
-                            success = ("result" in result and "error" not in result and not (isinstance(result.get("result"), dict) and result["result"].get("pending_approval", False)))
+                            try:
+                                if arguments is None or argument_error:
+                                    result = {"error": argument_error or "Tool arguments अवैध आहेत."}
+                                elif tool_name == "smart_calculate":
+                                    result = {
+                                        "expression": arguments["expression"],
+                                        "answer": smart_calculate(arguments["expression"])
+                                    }
+                                elif tool_name == "get_weather":
+                                    result = get_badnera_weather(arguments)
+                                elif tool_name == "open_android_app":
+                                    app_name = arguments["app_name"].strip().lower()
+                                    action = create_approval(app_name)
+                                    result = {"result": {
+                                        "pending_approval": True,
+                                        "approval_id": action["id"],
+                                        "message": app_name + " उघडण्यासाठी मंजुरी मागितली आहे. अजून App उघडलेले नाही."
+                                    }}
+                                elif tool_name == "search_memory":
+                                    result = search_memory(arguments.get("query", ""), arguments.get("category", ""), arguments.get("limit", 10))
+                                elif tool_name == "save_memory_item":
+                                    result = save_memory_item(arguments["key"], arguments["value"], arguments.get("category", "auto"))
+                                elif tool_name == "update_memory_item":
+                                    result = update_memory_item(arguments["key"], arguments["value"])
+                                elif tool_name == "forget_memory_item":
+                                    result = forget_memory_item(arguments["key"])
+                                elif tool_name == "memory_dashboard":
+                                    result = memory_dashboard()
+                                elif tool_name == "detect_memory_conflicts":
+                                    result = detect_memory_conflicts()
+                                elif tool_name == "recall_conversation_context":
+                                    result = recall_conversation_context(arguments["query"], arguments.get("limit", 8))
+                                elif tool_name == "preview_memory_backup":
+                                    result = preview_memory_backup(arguments["filename"])
+                                elif tool_name == "memory_integrity_check":
+                                    result = memory_integrity_check()
+                                elif tool_name == "list_memory_backups":
+                                    result = list_memory_backups()
+                                elif tool_name in ("get_current_time", "get_system_info", "get_available_tools"):
+                                    result = execute_tool(tool_name, arguments)
+                                else:
+                                    result = {"error": "हे Tool उपलब्ध किंवा अनुमत नाही."}
+                                if not isinstance(result, dict):
+                                    result = {"result": result}
+                            except Exception as exc:
+                                print("[SHIVAM TOOL ERROR]", tool_name, type(exc).__name__)
+                                try:
+                                    record_recovery_diagnostic("tool:" + str(tool_name), exc)
+                                except Exception:
+                                    pass
+                                result = {"error": "Tool चालवताना त्रुटी आली. कृपया पुन्हा प्रयत्न करा."}
+
+                            latency = int((__import__("time").time() - started) * 1000)
+                            tool_payload = result.get("result", result)
+                            pending = isinstance(tool_payload, dict) and tool_payload.get("pending_approval", False)
+                            nested_error = isinstance(tool_payload, dict) and bool(tool_payload.get("error"))
+                            nested_failed = isinstance(tool_payload, dict) and tool_payload.get("success") is False
+                            success = "error" not in result and not nested_error and not nested_failed and not pending
 
                             end_event = {
                                 "tool": tool_name,
                                 "success": success,
-                                "result": result.get("result", result.get("error")),
+                                "status": "pending_approval" if pending else ("success" if success else "error"),
+                                "result": result.get("result", result.get("answer", result.get("error", result))),
                                 "latency": latency
                             }
                             self.wfile.write(
-                                ("event: tool_call_end\ndata: " +
+                                ("event: tool_call_end\\ndata: " +
                                  json.dumps(end_event, ensure_ascii=False) +
-                                 "\n\n").encode("utf-8")
+                                 "\\n\\n").encode("utf-8")
                             )
                             self.wfile.flush()
 
