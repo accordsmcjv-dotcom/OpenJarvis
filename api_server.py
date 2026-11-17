@@ -488,6 +488,40 @@ def memory_integrity_check():
     }
 
 
+
+
+def list_memory_backups():
+    """स्थानिक Memory Backups ची यादी आणि JSON वैधता तपासा."""
+    folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
+    if not os.path.isdir(folder):
+        return {"count": 0, "backups": [], "message": "अजून Backup उपलब्ध नाही."}
+
+    backups = []
+    for filename in sorted(os.listdir(folder), reverse=True):
+        if not filename.endswith(".json"):
+            continue
+        if not filename.startswith(("memory_", "memory_categories_")):
+            continue
+
+        path = os.path.join(folder, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                json.load(f)
+            valid = True
+        except Exception:
+            valid = False
+
+        stat = os.stat(path)
+        backups.append({
+            "file": filename,
+            "valid_json": valid,
+            "size_bytes": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+        })
+
+    return {"count": len(backups), "backups": backups[:20]}
+
+
 def backup_memory_state():
     """Memory बदलण्यापूर्वी सुरक्षित स्थानिक बॅकअप."""
     folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
@@ -1440,6 +1474,18 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "list_memory_backups",
+                        "description": "उपलब्ध Memory Backup ची यादी, तारीख, आकार आणि JSON वैधता तपासा. कोणतीही फाइल बदलू नका.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_available_tools",
                         "description": "JARVIS ची उपलब्ध Tools यादी मिळवा.",
                         "parameters": {
@@ -1672,6 +1718,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 )
                             elif tool_name == "memory_integrity_check":
                                 result = memory_integrity_check()
+                            elif tool_name == "list_memory_backups":
+                                result = list_memory_backups()
                             else:
                                 result = execute_tool(tool_name, arguments)
 
