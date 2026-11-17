@@ -65,14 +65,48 @@ export default function App() {
     return () => clearInterval(interval);
   }, [importOverlay]);
 
-  // Fetch models on mount
+  // Reliable Android/Desktop model loading with retry and refresh
   useEffect(() => {
-    fetchModels()
-      .then((m) => {
-        setModels(m);
-      })
-      .catch(() => setModels([]))
-      .finally(() => setModelsLoading(false));
+    let cancelled = false;
+    let loading = false;
+    let interval: ReturnType<typeof setInterval>;
+
+    const loadModels = async (initial = false) => {
+      if (loading || cancelled) return;
+      loading = true;
+      if (initial) setModelsLoading(true);
+
+      try {
+        for (let attempt = 0; attempt < 6 && !cancelled; attempt++) {
+          try {
+            const models = await fetchModels();
+            if (!cancelled) setModels(models);
+            return;
+          } catch {
+            if (attempt < 5) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+        }
+      } finally {
+        if (!cancelled && initial) setModelsLoading(false);
+        loading = false;
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void loadModels(false);
+    };
+
+    void loadModels(true);
+    interval = setInterval(() => void loadModels(false), 60000);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch server info
