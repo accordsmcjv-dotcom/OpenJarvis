@@ -338,6 +338,36 @@ def is_sensitive_memory(key, value):
     ))
 
 
+def classify_user_intent(text):
+    """वापरकर्त्याच्या संदेशाचा प्राथमिक हेतू ओळखा."""
+    value = str(text or "").casefold()
+
+    rules = (
+        ("memory", ("आठव", "मागे सांगितले", "माझी माहिती", "विसर", "जतन कर", "memory", "remember", "previous conversation")),
+        ("calculation", ("किती बेरीज", "गुणाकार", "भागाकार", "हिशोब", "calculate", "calculator", "solve", " + ", " × ", " ÷ ")),
+        ("weather", ("हवामान", "पाऊस", "तापमान", "थंडी", "weather", "forecast")),
+        ("time", ("आत्ताची वेळ", "आजची तारीख", "आज कोणता वार", "current time", "today's date")),
+        ("device_action", ("उघड", "सुरू कर", "चालू कर", "बंद कर", "लॉन्च", "open app", "close app", "launch")),
+    )
+
+    for intent, keywords in rules:
+        if any(word in value for word in keywords):
+            return intent
+    return "general"
+
+
+def intent_guidance(intent):
+    guidance = {
+        "memory": "हा Memory संदर्भातील प्रश्न आहे. आवश्यक असल्यास संबंधित Memory किंवा संभाषण शोधूनच उत्तर दे.",
+        "calculation": "हा गणिताचा प्रश्न असू शकतो. शक्य असल्यास smart_calculate Tool वापरून अचूक गणना कर.",
+        "weather": "हा हवामानाचा प्रश्न आहे. get_weather Tool वापर आणि उपलब्ध माहितीपुरतेच उत्तर दे.",
+        "time": "वेळ, तारीख किंवा वार विचारले असल्यास get_current_time Tool वापर.",
+        "device_action": "ही Android कृतीची विनंती असू शकते. आवश्यक Tool वापर; आवश्यक मंजुरीशिवाय कृती करू नकोस.",
+        "general": "प्रश्नाचा संदर्भ समजून योग्य Tool आवश्यक असल्यास वापर. माहिती नसेल तर अंदाज लावू नकोस."
+    }
+    return guidance.get(intent, guidance["general"])
+
+
 def build_system_prompt():
     prompt = load_prompt()
     prompt = prompt.replace(
@@ -1411,6 +1441,11 @@ class JarvisAPI(BaseHTTPRequestHandler):
             auto_save_explicit_preference(conversation[-1]["content"])
             conversation = protect_conversation_context(conversation)
             messages = [{"role": "system", "content": build_system_prompt()}]
+            detected_intent = classify_user_intent(conversation[-1]["content"])
+            messages.insert(1, {
+                "role": "system",
+                "content": "ओळखलेला प्राथमिक हेतू: " + detected_intent + ". " + intent_guidance(detected_intent)
+            })
             context_summary = build_context_summary(conversation)
             if context_summary:
                 messages.append({
