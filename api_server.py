@@ -14,6 +14,7 @@ HOST = "127.0.0.1"
 PORT = 8000
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_FILE = os.path.join(BASE_DIR, "memory.json")
+MEMORY_CATEGORIES_FILE = os.path.join(BASE_DIR, "memory_categories.json")
 HISTORY_FILE = os.path.join(BASE_DIR, "chat_history.json")
 JARVIS_FILE = os.path.join(BASE_DIR, "jarvis.py")
 
@@ -206,7 +207,7 @@ def is_sensitive_memory(key, value):
         return True
     return bool(re.search(
         r"password|passcode|api.?key|secret|token|otp|पासवर्ड|गुप्त.?कळ|"
-        r"(?:jarvis|shivam)[-_ ]?\\d{3,}",
+        r"(?:jarvis|shivam)[-_ ]?\d{3,}",
         text, re.I
     ))
 
@@ -239,6 +240,7 @@ def build_system_prompt():
         "Tool मधून मिळालेल्या अचूक माहितीनुसारच उत्तर दे. "
         "Android App उघडण्यापूर्वी वापरकर्त्याची स्पष्ट मंजुरी आवश्यक आहे. "
         "मंजुरी मिळेपर्यंत App उघडू नकोस. "
+        "जतन केलेली माहिती शोधण्यासाठी search_memory Tool वापर. " +
         "दीर्घकाळ उपयोगी आणि स्पष्ट नवीन माहिती जतन करण्यासाठी save_memory_item Tool वापर. "
         "नवीन माहिती जतन करण्यापूर्वी Memory मधील Key तपास आणि समान माहिती पुन्हा जतन करू नकोस. "
         "आधीची माहिती बदलण्याची स्पष्ट विनंती असल्यास update_memory_item Tool वापर. "
@@ -250,18 +252,46 @@ def build_system_prompt():
     )
 
     memory = load_json(MEMORY_FILE, {})
-    if isinstance(memory, dict) and memory:
-        context = "\\n".join(
-            "- " + str(k) + ": " + str(v)
-            for k, v in [(k, v) for k, v in memory.items() if not is_sensitive_memory(k, v)][-20:]
-        )[:2000]
-        prompt += "\\nलक्षात ठेवलेली माहिती:\\n" + context
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+    allowed_categories = ("preference", "project", "personal_context", "general")
 
-    prompt += "वापरकर्त्याने कोणत्याही भाषेत प्रश्न विचारला तरी उत्तर नेहमी सोप्या, शुद्ध आणि नैसर्गिक मराठीत दे. प्रश्नाचा अर्थ आणि संदर्भ समजून घे; हिंदी किंवा इंग्रजीत उत्तर देऊ नकोस. आवश्यक तांत्रिक शब्दांसाठीच इंग्रजी शब्द वापर. वापरकर्त्याने भाषांतर स्पष्टपणे मागितल्यासच दुसऱ्या भाषेत मजकूर दे.\n"
+    if isinstance(memory, dict) and memory:
+        if not isinstance(categories, dict):
+            categories = {}
+
+        grouped = {category: [] for category in allowed_categories}
+        for key, value in memory.items():
+            if not isinstance(value, str) or is_sensitive_memory(key, value):
+                continue
+
+            category = categories.get(key, "general")
+            if category not in allowed_categories:
+                category = "general"
+
+            grouped[category].append("- " + str(key) + ": " + value)
+
+        labels = {
+            "preference": "वापरकर्त्याच्या पसंती",
+            "project": "प्रोजेक्ट माहिती",
+            "personal_context": "वैयक्तिक संदर्भ",
+            "general": "इतर माहिती"
+        }
+
+        sections = []
+        for category in allowed_categories:
+            if grouped[category]:
+                sections.append(
+                    labels[category] + ":\\n" + "\\n".join(grouped[category][-20:])
+                )
+
+        if sections:
+            prompt += "\\nलक्षात ठेवलेली माहिती (Category नुसार):\\n"
+            prompt += "\\n".join(sections)[:3000]
+
     return prompt
 
 
-def save_memory_item(key, value):
+def save_memory_item(key, value, category="general"):
     if not isinstance(key, str) or not isinstance(value, str):
         return {"error": "Memory माहिती अवैध आहे."}
 
@@ -270,8 +300,9 @@ def save_memory_item(key, value):
 
     if not key or not value:
         return {"error": "Memory Key आणि Value आवश्यक आहेत."}
-    if is_sensitive_memory(key, value):
-        return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही."}
+    allowed_categories = ("preference", "project", "personal_context", "general")
+    if category not in allowed_categories:
+        return {"error": "Memory Category अवैध आहे."}
     if is_sensitive_memory(key, value):
         return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही."}
 
@@ -305,7 +336,14 @@ def save_memory_item(key, value):
 
     memory[key] = value
     save_json(MEMORY_FILE, memory)
-    return {"result": "नवीन Memory सुरक्षितपणे जतन झाली."}
+
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+    if not isinstance(categories, dict):
+        categories = {}
+    categories[key] = category
+    save_json(MEMORY_CATEGORIES_FILE, categories)
+
+    return {"result": "नवीन Memory सुरक्षितपणे जतन झाली. Category: " + category}
 
 def auto_save_explicit_preference(user_text):
     if not isinstance(user_text, str):
@@ -326,7 +364,7 @@ def auto_save_explicit_preference(user_text):
         "पसंती": "कायमची-पसंती",
         "सूचना": "कायमची-सूचना"
     }[match.group(1)]
-    result = save_memory_item(key, value)
+    result = save_memory_item(key, value, "preference")
     print("[SHIVAM AUTO MEMORY]", result)
     return result
 
@@ -334,13 +372,20 @@ def auto_save_explicit_preference(user_text):
 def update_memory_item(key, value):
     if not isinstance(key, str) or not isinstance(value, str):
         return {"error": "Memory माहिती अवैध आहे."}
-    key = key.strip()
-    value = value.strip()[:500]
+
+    key = key.strip()[:80]
+    value = " ".join(value.strip().split())[:500]
+
     if not key or not value:
         return {"error": "Memory Key आणि Value आवश्यक आहेत."}
+
+    if is_sensitive_memory(key, value):
+        return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये अपडेट केली जाणार नाही."}
+
     memory = load_json(MEMORY_FILE, {})
     if not isinstance(memory, dict) or key not in memory:
         return {"error": "ही Memory Key सापडली नाही."}
+
     memory[key] = value
     save_json(MEMORY_FILE, memory)
     return {"result": "Memory यशस्वीपणे अपडेट झाली."}
@@ -349,25 +394,100 @@ def update_memory_item(key, value):
 def forget_memory_item(key):
     if not isinstance(key, str) or not key.strip():
         return {"error": "अचूक Memory Key आवश्यक आहे."}
+
     key = key.strip()
     memory = load_json(MEMORY_FILE, {})
+
     if not isinstance(memory, dict) or key not in memory:
         return {"error": "ही Memory Key सापडली नाही."}
+
     del memory[key]
     save_json(MEMORY_FILE, memory)
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+    if isinstance(categories, dict) and key in categories:
+        del categories[key]
+        save_json(MEMORY_CATEGORIES_FILE, categories)
     return {"result": "निवडलेली Memory हटवली आहे."}
+
+
+
+def search_memory(query="", category="", limit=10):
+    allowed_categories = ("preference", "project", "personal_context", "general")
+
+    if not isinstance(query, str) or not isinstance(category, str):
+        return {"error": "शोध माहिती अवैध आहे."}
+
+    query = query.strip()[:100].casefold()
+    category = category.strip()
+
+    if category and category not in allowed_categories:
+        return {"error": "Memory Category अवैध आहे."}
+
+    if not query and not category:
+        return {"error": "शोधण्यासाठी Query किंवा Category आवश्यक आहे."}
+
+    try:
+        limit = max(1, min(int(limit), 10))
+    except (TypeError, ValueError):
+        limit = 10
+
+    memory = load_json(MEMORY_FILE, {})
+    categories = load_json(MEMORY_CATEGORIES_FILE, {})
+
+    if not isinstance(memory, dict):
+        memory = {}
+    if not isinstance(categories, dict):
+        categories = {}
+
+    matches = []
+    for key, value in memory.items():
+        if not isinstance(value, str) or is_sensitive_memory(key, value):
+            continue
+
+        item_category = categories.get(key, "general")
+        if item_category not in allowed_categories:
+            item_category = "general"
+
+        if category and item_category != category:
+            continue
+
+        if query and query not in (str(key) + " " + value).casefold():
+            continue
+
+        matches.append({
+            "key": str(key),
+            "value": value,
+            "category": item_category
+        })
+
+        if len(matches) >= limit:
+            break
+
+    return {"count": len(matches), "matches": matches}
 
 def load_history():
     data = load_json(HISTORY_FILE, [])
     if not isinstance(data, list):
         return []
-    return [m for m in data
-            if isinstance(m, dict)
-            and m.get("role") in ("user", "assistant")][-20:]
+
+    return [
+        m for m in data
+        if isinstance(m, dict)
+        and m.get("role") in ("user", "assistant")
+        and isinstance(m.get("content"), str)
+    ][-20:]
 
 
 def save_history(history):
-    save_json(HISTORY_FILE, history[-20:])
+    if not isinstance(history, list):
+        return
+    valid = [
+        m for m in history
+        if isinstance(m, dict)
+        and m.get("role") in ("user", "assistant")
+        and isinstance(m.get("content"), str)
+    ]
+    save_json(HISTORY_FILE, valid[-20:])
 
 
 def get_badnera_weather(arguments):
@@ -819,15 +939,33 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "search_memory",
+                        "description": "जतन केलेली Memory Query किंवा Category नुसार शोधा. Update किंवा Forget करण्यापूर्वी अचूक Key शोधण्यासाठी वापरा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "Key किंवा माहितीतील शब्द"},
+                                "category": {"type": "string", "enum": ["preference", "project", "personal_context", "general"], "description": "Memory Category"},
+                                "limit": {"type": "integer", "description": "जास्तीत जास्त 10 नोंदी"}
+                            },
+                            "required": [],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "save_memory_item",
                         "description": "वापरकर्त्याने स्पष्टपणे सांगितलेली दीर्घकाळ उपयोगी पसंती किंवा प्रोजेक्टची माहिती जतन करा. पासवर्ड, API keys, OTP किंवा संवेदनशील माहिती जतन करू नका.",
                         "parameters": {
                             "type": "object",
                             "properties": {
-                                "key": {"type": "string", "description": "माहितीचा विषय, उदा. भाषा-पसंती"},
-                                "value": {"type": "string", "description": "जतन करायची संपूर्ण माहिती, उदा. नेहमी सोप्या मराठीत उत्तर द्या"}
+                                "key": {"type": "string", "description": "माहितीचा विषय"},
+                                "value": {"type": "string", "description": "जतन करायची माहिती"},
+                                "category": {"type": "string", "enum": ["preference", "project", "personal_context", "general"], "description": "माहितीची Category"}
                             },
-                            "required": ["key", "value"],
+                            "required": ["key", "value", "category"],
                             "additionalProperties": False
                         }
                     }
@@ -1068,10 +1206,17 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                             )
                                         }
                                     }
+                            elif tool_name == "search_memory":
+                                result = search_memory(
+                                    arguments.get("query", ""),
+                                    arguments.get("category", ""),
+                                    arguments.get("limit", 10)
+                                )
                             elif tool_name == "save_memory_item":
                                 result = save_memory_item(
                                     arguments.get("key"),
-                                    arguments.get("value")
+                                    arguments.get("value"),
+                                    arguments.get("category", "general")
                                 )
                             elif tool_name == "update_memory_item":
                                 result = update_memory_item(
