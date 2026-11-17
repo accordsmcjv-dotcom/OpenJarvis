@@ -211,35 +211,45 @@ nse.close()
 
 def safe_stream_lines(response, stage):
     completed = False
+    interrupted = False
     try:
-        for line in response.iter_lines():
-            if isinstance(line, bytes):
-                line = line.decode("utf-8", errors="replace")
-            if line.startswith("data:") and line[5:].strip() == "[DONE]":
-                completed = True
-            yield line
-    except (httpx.TransportError, OSError, TimeoutError) as exc:
-        print(f"[SHIVAM STREAM INTERRUPTED] {stage}: {exc!r}")
-        warning = {
-            "choices": [{
-                "delta": {
-                    "content": "\n[उत्तराचा प्रवाह मध्येच खंडित झाला. उपलब्ध उत्तर येथे दिले आहे.]"
-                }
-            }]
-        }
-        yield "data: " + json.dumps(warning, ensure_ascii=False)
-        return
+        try:
+            for line in response.iter_lines():
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", errors="replace")
+                if line.startswith("data:") and line[5:].strip() == "[DONE]":
+                    if completed:
+                        continue
+                    completed = True
+                yield line
+        except (httpx.TransportError, OSError, TimeoutError) as exc:
+            interrupted = True
+            print(f"[SHIVAM STREAM INTERRUPTED] {stage}: {exc!r}")
+            warning = {
+                "choices": [{
+                    "delta": {
+                        "content": "\\n[उत्तराचा प्रवाह मध्येच खंडित झाला. उपलब्ध उत्तर येथे दिले आहे.]"
+                    }
+                }]
+            }
+            yield "data: " + json.dumps(warning, ensure_ascii=False)
 
-    if not completed:
-        print(f"[SHIVAM STREAM INCOMPLETE] {stage}: DONE event missing")
-        warning = {
-            "choices": [{
-                "delta": {
-                    "content": "\n[उत्तराचा प्रवाह पूर्ण होण्यापूर्वी थांबला. उपलब्ध उत्तर येथे दिले आहे.]"
-                }
-            }]
-        }
-        yield "data: " + json.dumps(warning, ensure_ascii=False)
+        if not completed and not interrupted:
+            print(f"[SHIVAM STREAM INCOMPLETE] {stage}: DONE event missing")
+            warning = {
+                "choices": [{
+                    "delta": {
+                        "content": "\\n[उत्तराचा प्रवाह पूर्ण होण्यापूर्वी थांबला. उपलब्ध उत्तर येथे दिले आहे.]"
+                    }
+                }]
+            }
+            yield "data: " + json.dumps(warning, ensure_ascii=False)
+    finally:
+        try:
+            response.close()
+        except Exception as exc:
+            print(f"[SHIVAM STREAM CLOSE] {stage}: {exc!r}")
+
 
 
 def load_json(path, default):
