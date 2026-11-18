@@ -8,6 +8,7 @@ import { GetStartedPage } from './pages/GetStartedPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { DataSourcesPage } from './pages/DataSourcesPage';
 import { LogsPage } from './pages/LogsPage';
+import { NotesPage } from './pages/NotesPage';
 import { CommandPalette } from './components/CommandPalette';
 import { SetupScreen } from './components/SetupScreen';
 import { Toaster } from './components/ui/sonner';
@@ -109,10 +110,37 @@ export default function App() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch server info
+  // Keep server identity fresh when the app starts, regains focus, or becomes visible.
   useEffect(() => {
-    fetchServerInfo().then(setServerInfo).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    let running = false;
+    const refreshInfo = async () => {
+      if (running || cancelled) return;
+      running = true;
+      try {
+        const info = await fetchServerInfo();
+        if (!cancelled) setServerInfo(info);
+      } catch {
+        // Health banner handles backend connectivity separately.
+      } finally {
+        running = false;
+      }
+    };
+    void refreshInfo();
+    const interval = setInterval(() => void refreshInfo(), 30000);
+    const onFocus = () => void refreshInfo();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshInfo();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [setServerInfo]);
 
   // Poll savings and optionally share to Supabase
   useEffect(() => {
@@ -225,6 +253,7 @@ export default function App() {
           <Route path="data-sources" element={<DataSourcesPage />} />
           <Route path="agents" element={<AgentsPage />} />
           <Route path="logs" element={<LogsPage />} />
+              <Route path="notes" element={<NotesPage />} />
         </Route>
       </Routes>
       <Toaster position="bottom-right" />

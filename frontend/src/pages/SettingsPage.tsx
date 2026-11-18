@@ -392,14 +392,46 @@ export function SettingsPage() {
   }, [refreshMemoryStatus, settings.apiUrl]);
 
   useEffect(() => {
-    checkHealth().then(setHealthy);
+    let active = true;
+    let checking = false;
+
+    const refreshHealth = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const healthy = await checkHealth();
+        if (active) setHealthy(healthy);
+      } catch {
+        if (active) setHealthy(false);
+      } finally {
+        checking = false;
+      }
+    };
+
+    void refreshHealth();
+    const interval = setInterval(() => void refreshHealth(), 30000);
+    const onFocus = () => void refreshHealth();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshHealth();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
     fetchSpeechHealth()
-      .then((h) => setSpeechBackendAvailable(h.available))
-      .catch(() => setSpeechBackendAvailable(false));
+      .then((h) => { if (active) setSpeechBackendAvailable(h.available); })
+      .catch(() => { if (active) setSpeechBackendAvailable(false); });
     fetchTtsHealth()
-      .then((h) => setTtsBackend(h))
-      .catch(() => setTtsBackend({ available: false }));
-  }, []);
+      .then((h) => { if (active) setTtsBackend(h); })
+      .catch(() => { if (active) setTtsBackend({ available: false }); });
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [settings.apiUrl]);
 
   const showSaved = () => {
     setSaved(true);

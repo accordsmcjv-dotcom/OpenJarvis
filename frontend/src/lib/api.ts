@@ -1234,3 +1234,59 @@ export async function setInferenceSource(
 export const stageInferenceSource = (
   src: InferenceSource & { apiKey?: string },
 ): Promise<void> => setInferenceSource(src, { pending: true });
+
+
+// ---------------------------------------------------------------------------
+// SHIVAM Smart Notes API
+// ---------------------------------------------------------------------------
+export interface SmartNote {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchNotes(query = ""): Promise<SmartNote[]> {
+  const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+  const res = await apiFetch(`/v1/notes${params}`);
+  if (!res.ok) throw new Error(`Notes fetch failed: ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data.notes) ? data.notes : [];
+}
+
+export async function createNote(title: string, content: string): Promise<SmartNote> {
+  const res = await apiFetch("/v1/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, content }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "नोंद जतन करता आली नाही");
+  }
+  return (await res.json()).note;
+}
+
+export async function updateNote(id: string, title: string, content: string): Promise<SmartNote> {
+  const res = await apiFetch(`/v1/notes/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, content }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "नोंद बदलता आली नाही");
+  }
+  return (await res.json()).note;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const res = await apiFetch(`/v1/notes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "नोंद हटवता आली नाही");
+  }
+}

@@ -11,6 +11,7 @@ import httpx
 from contextlib import contextmanager
 import uuid
 import re
+import urllib.parse
 from tools_engine import execute_tool, get_available_tools
 
 HOST = "127.0.0.1"
@@ -23,6 +24,7 @@ JARVIS_FILE = os.path.join(BASE_DIR, "jarvis.py")
 
 APPROVALS_FILE = os.path.join(BASE_DIR, "pending_approvals.json")
 MODELS_CACHE_FILE = os.path.join(BASE_DIR, "models_cache.json")
+NOTES_FILE = os.path.join(BASE_DIR, "notes.json")
 
 
 def load_approvals():
@@ -37,6 +39,10 @@ def save_approvals(data):
 def create_approval(app_name):
     import datetime
     import uuid
+    allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"}
+    if not isinstance(app_name, str) or app_name.strip().lower() not in allowed_apps:
+        raise ValueError("हे App परवानगी यादीत नाही.")
+    app_name = app_name.strip().lower()
 
     now = datetime.datetime.now(datetime.timezone.utc)
     action = {
@@ -1196,7 +1202,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
         self.wfile.write(body)
@@ -1205,6 +1211,24 @@ class JarvisAPI(BaseHTTPRequestHandler):
         self.send_json(200, {"status": "ok"})
 
     def do_GET(self):
+        route = self.path.split("?", 1)[0]
+        if route == "/v1/info":
+            self.send_json(200, {
+                "model": os.getenv("JARVIS_MODEL", "openrouter/auto"),
+                "agent": "SHIVAM",
+                "engine": "OpenRouter"
+            })
+            return
+        if route == "/v1/notes":
+            notes = load_json(NOTES_FILE, [])
+            if not isinstance(notes, list):
+                notes = []
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("q", [""])[0].strip().casefold()
+            if query:
+                notes = [n for n in notes if isinstance(n, dict) and query in (str(n.get("title", "")) + " " + str(n.get("content", ""))).casefold()]
+            notes.sort(key=lambda n: str(n.get("updated_at", "")), reverse=True)
+            self.send_json(200, {"notes": notes})
+            return
         if self.path == "/v1/speech/tts/health":
             self.send_json(200, {
                 "available": True,
@@ -1303,6 +1327,32 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "API endpoint not found"})
 
     def do_POST(self):
+        if self.path == "/v1/notes":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if length <= 0 or length > 25000:
+                    self.send_json(400, {"error": "नोंदीचा आकार अवैध आहे"})
+                    return
+                data = json.loads(self.rfile.read(length))
+                title, content = data.get("title", ""), data.get("content", "")
+                if not isinstance(title, str) or not isinstance(content, str) or not title.strip() or not content.strip():
+                    self.send_json(400, {"error": "शीर्षक आणि मजकूर आवश्यक आहे"})
+                    return
+                if len(title) > 200 or len(content) > 20000:
+                    self.send_json(400, {"error": "नोंद खूप मोठी आहे"})
+                    return
+                import datetime
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                note = {"id": str(uuid.uuid4()), "title": title.strip(), "content": content.strip(), "created_at": now, "updated_at": now}
+                notes = load_json(NOTES_FILE, [])
+                if not isinstance(notes, list):
+                    notes = []
+                notes.append(note)
+                save_json(NOTES_FILE, notes)
+                self.send_json(201, {"note": note})
+            except Exception as exc:
+                self.send_json(400, {"error": "नोंद जतन करता आली नाही: " + str(exc)[:180]})
+            return
         if self.path == "/v1/speech/synthesize":
             temp_path = None
             try:
@@ -1403,9 +1453,32 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
 
             payload = action.get("payload", {})
-            if not isinstance(payload, dict) or set(payload) != {"app_name"}:
+            allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"}
+            if (
+                not isinstance(payload, dict)
+                or set(payload) != {"app_name"}
+                or not isinstance(payload.get("app_name"), str)
+                or payload["app_name"].strip().lower() not in allowed_apps
+            ):
+                action["status"] = "failed"
+                action["execution_result"] = {"error": "Invalid approval payload"}
+                save_approvals(approvals)
                 self.send_json(400, {"error": "Invalid approval payload"})
                 return
+
+            payload["app_name"] = payload["app_name"].strip().lower()
+            result = execute_tool("open_android_app", payload)
+            execution = result.get("result") if isinstance(result, dict) else None
+            succeeded = isinstance(execution, dict) and execution.get("success") is True
+            action["status"] = "approved" if succeeded else "failed"
+            action["execution_result"] = result
+            save_approvals(approvals)
+            self.send_json(200, {
+                "success": succeeded,
+                "status": action["status"],
+                "result": result
+            })
+            return
 
             result = execute_tool("open_android_app", payload)
             action["status"] = "approved" if "result" in result else "failed"
@@ -2123,6 +2196,58 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 self.send_json(500, {"error": "SHIVAM API मध्ये अनपेक्षित अडचण आली. कृपया पुन्हा प्रयत्न करा."})
             except Exception:
                 pass
+
+    def do_PUT(self):
+        match = re.fullmatch(r"/v1/notes/([0-9a-fA-F-]{36})", self.path.split("?", 1)[0])
+        if not match:
+            self.send_json(404, {"error": "नोंद सापडली नाही"})
+            return
+        try:
+            note_id = str(uuid.UUID(match.group(1)))
+            length = int(self.headers.get("Content-Length", 0))
+            if length <= 0 or length > 25000:
+                self.send_json(400, {"error": "नोंदीचा आकार अवैध आहे"})
+                return
+            data = json.loads(self.rfile.read(length))
+            title, content = data.get("title", ""), data.get("content", "")
+            if not isinstance(title, str) or not isinstance(content, str) or not title.strip() or not content.strip():
+                self.send_json(400, {"error": "शीर्षक आणि मजकूर आवश्यक आहे"})
+                return
+            if len(title) > 200 or len(content) > 20000:
+                self.send_json(400, {"error": "नोंद खूप मोठी आहे"})
+                return
+            notes = load_json(NOTES_FILE, [])
+            if not isinstance(notes, list):
+                notes = []
+            note = next((n for n in notes if isinstance(n, dict) and n.get("id") == note_id), None)
+            if note is None:
+                self.send_json(404, {"error": "नोंद सापडली नाही"})
+                return
+            import datetime
+            note.update({"title": title.strip(), "content": content.strip(), "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+            save_json(NOTES_FILE, notes)
+            self.send_json(200, {"note": note})
+        except Exception as exc:
+            self.send_json(400, {"error": "नोंद बदलता आली नाही: " + str(exc)[:180]})
+
+    def do_DELETE(self):
+        match = re.fullmatch(r"/v1/notes/([0-9a-fA-F-]{36})", self.path.split("?", 1)[0])
+        if not match:
+            self.send_json(404, {"error": "नोंद सापडली नाही"})
+            return
+        try:
+            note_id = str(uuid.UUID(match.group(1)))
+            notes = load_json(NOTES_FILE, [])
+            if not isinstance(notes, list):
+                notes = []
+            remaining = [n for n in notes if not isinstance(n, dict) or n.get("id") != note_id]
+            if len(remaining) == len(notes):
+                self.send_json(404, {"error": "नोंद सापडली नाही"})
+                return
+            save_json(NOTES_FILE, remaining)
+            self.send_json(200, {"success": True, "deleted_id": note_id})
+        except Exception as exc:
+            self.send_json(400, {"error": "नोंद हटवता आली नाही: " + str(exc)[:180]})
 
     def log_message(self, format, *args):
         print("[JARVIS API]", format % args)
