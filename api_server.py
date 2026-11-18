@@ -25,6 +25,49 @@ JARVIS_FILE = os.path.join(BASE_DIR, "jarvis.py")
 APPROVALS_FILE = os.path.join(BASE_DIR, "pending_approvals.json")
 MODELS_CACHE_FILE = os.path.join(BASE_DIR, "models_cache.json")
 NOTES_FILE = os.path.join(BASE_DIR, "notes.json")
+TOOL_CREDENTIALS_FILE = os.path.join(BASE_DIR, "tool_credentials.json")
+
+def load_tool_credentials():
+    data = load_json(TOOL_CREDENTIALS_FILE, {})
+    return data if isinstance(data, dict) else {}
+
+def save_tool_credentials(data):
+    temp = TOOL_CREDENTIALS_FILE + ".tmp"
+    with open(temp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.chmod(temp, 0o600)
+    os.replace(temp, TOOL_CREDENTIALS_FILE)
+    os.chmod(TOOL_CREDENTIALS_FILE, 0o600)
+
+def tavily_web_search(query, max_results=5):
+    if not isinstance(query, str) or not query.strip() or len(query) > 500:
+        raise ValueError("Search प्रश्न 1 ते 500 अक्षरांचा असावा.")
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= 10:
+        raise ValueError("निकालांची संख्या 1 ते 10 असावी.")
+    credentials = load_tool_credentials().get("web_search", {})
+    key = credentials.get("TAVILY_API_KEY") if isinstance(credentials, dict) else None
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("Settings मध्ये Tavily API Key सेव्ह करा.")
+    response = httpx.post(
+        "https://api.tavily.com/search",
+        json={"api_key": key.strip(), "query": query.strip(),
+              "search_depth": "basic", "max_results": max_results,
+              "include_answer": True},
+        timeout=30
+    )
+    response.raise_for_status()
+    data = response.json()
+    results = []
+    for item in data.get("results", []):
+        if isinstance(item, dict):
+            results.append({
+                "title": str(item.get("title", ""))[:300],
+                "url": str(item.get("url", ""))[:1000],
+                "content": str(item.get("content", ""))[:2000]
+            })
+    return {"query": query.strip(),
+            "answer": str(data.get("answer", ""))[:3000],
+            "results": results}
 
 
 def load_approvals():
@@ -397,6 +440,7 @@ def classify_user_intent(text):
     rules = (
         ("memory", ("आठव", "मागे सांगितले", "माझी माहिती", "विसर", "जतन कर", "memory", "remember", "previous conversation")),
         ("calculation", ("किती बेरीज", "गुणाकार", "भागाकार", "हिशोब", "calculate", "calculator", "solve", " + ", " × ", " ÷ ")),
+        ("web_search", ("इंटरनेटवर शोध", "वेब सर्च", "ताजी माहिती", "बातम्या", "शोधून सांग", "search online", "web search", "latest news", "research")),
         ("weather", ("हवामान", "पाऊस", "तापमान", "थंडी", "weather", "forecast")),
         ("time", ("आत्ताची वेळ", "आजची तारीख", "आज कोणता वार", "current time", "today's date")),
         ("device_action", ("उघड", "सुरू कर", "चालू कर", "बंद कर", "लॉन्च", "open app", "close app", "launch")),
@@ -964,6 +1008,58 @@ def smart_calculate(expression):
     return result
 
 
+
+def smart_unit_convert(value, from_unit, to_unit):
+    """सामान्य एककांचे सुरक्षित रूपांतर."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError("रूपांतरासाठी वैध संख्या आवश्यक आहे.")
+    if abs(value) > 1e100:
+        raise ValueError("दिलेली संख्या खूप मोठी आहे.")
+
+    aliases = {
+        "km": ("length", 1000.0), "kilometer": ("length", 1000.0), "kilometers": ("length", 1000.0), "किमी": ("length", 1000.0),
+        "m": ("length", 1.0), "meter": ("length", 1.0), "meters": ("length", 1.0), "मीटर": ("length", 1.0),
+        "cm": ("length", 0.01), "centimeter": ("length", 0.01), "सेंमी": ("length", 0.01),
+        "mm": ("length", 0.001), "millimeter": ("length", 0.001),
+        "mi": ("length", 1609.344), "mile": ("length", 1609.344), "miles": ("length", 1609.344),
+        "ft": ("length", 0.3048), "feet": ("length", 0.3048), "foot": ("length", 0.3048),
+        "in": ("length", 0.0254), "inch": ("length", 0.0254), "inches": ("length", 0.0254),
+        "kg": ("mass", 1.0), "kilogram": ("mass", 1.0), "किलो": ("mass", 1.0),
+        "g": ("mass", 0.001), "gram": ("mass", 0.001), "grams": ("mass", 0.001), "ग्रॅम": ("mass", 0.001),
+        "mg": ("mass", 0.000001), "milligram": ("mass", 0.000001),
+        "lb": ("mass", 0.45359237), "lbs": ("mass", 0.45359237), "pound": ("mass", 0.45359237),
+        "l": ("volume", 1.0), "liter": ("volume", 1.0), "litre": ("volume", 1.0), "लिटर": ("volume", 1.0),
+        "ml": ("volume", 0.001), "milliliter": ("volume", 0.001), "millilitre": ("volume", 0.001), "मिली": ("volume", 0.001),
+        "s": ("time", 1.0), "sec": ("time", 1.0), "second": ("time", 1.0), "seconds": ("time", 1.0),
+        "min": ("time", 60.0), "minute": ("time", 60.0), "minutes": ("time", 60.0),
+        "h": ("time", 3600.0), "hr": ("time", 3600.0), "hour": ("time", 3600.0), "hours": ("time", 3600.0),
+        "day": ("time", 86400.0), "days": ("time", 86400.0),
+        "c": ("temperature", None), "°c": ("temperature", None), "celsius": ("temperature", None), "सेल्सिअस": ("temperature", None),
+        "f": ("temperature", None), "°f": ("temperature", None), "fahrenheit": ("temperature", None),
+    }
+
+    source = str(from_unit).strip().casefold()
+    target = str(to_unit).strip().casefold()
+    if source not in aliases or target not in aliases:
+        raise ValueError("एकक ओळखता आले नाही. km, m, cm, kg, g, l, ml, c, f अशी एकके वापरा.")
+    source_type, source_factor = aliases[source]
+    target_type, target_factor = aliases[target]
+    if source_type != target_type:
+        raise ValueError("वेगवेगळ्या प्रकारच्या एककांचे रूपांतर करता येत नाही.")
+
+    result = float(value)
+    if source_type == "temperature":
+        if source in ("c", "°c", "celsius", "सेल्सिअस"):
+            result = result * 9 / 5 + 32 if target in ("f", "°f", "fahrenheit") else result
+        else:
+            result = (result - 32) * 5 / 9 if target in ("c", "°c", "celsius", "सेल्सिअस") else result
+    else:
+        result = result * source_factor / target_factor
+
+    if not math.isfinite(result) or abs(result) > 1e100:
+        raise ValueError("रूपांतराचे उत्तर मर्यादेबाहेर आहे.")
+    return {"value": value, "from_unit": from_unit, "to_unit": to_unit, "converted_value": round(result, 10)}
+
 def search_memory(query="", category="", limit=10):
     allowed_categories = ("preference", "project", "personal_context", "general")
     importance = {
@@ -1287,6 +1383,11 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         "error": "Model Catalog आणि Cache दोन्ही उपलब्ध नाहीत",
                         "details": str(exc)[:250]
                     })
+        elif route == "/v1/tools/web_search/credentials/status":
+            credentials = load_tool_credentials().get("web_search", {})
+            self.send_json(200, {
+                "TAVILY_API_KEY": isinstance(credentials, dict) and bool(credentials.get("TAVILY_API_KEY"))
+            })
         elif self.path == "/v1/tools":
             self.send_json(200, {
                 "tools": get_available_tools()
@@ -1327,6 +1428,27 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "API endpoint not found"})
 
     def do_POST(self):
+        if self.path == "/v1/tools/web_search/credentials":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if length <= 0 or length > 5000:
+                    self.send_json(400, {"error": "Credential request आकार अवैध आहे"})
+                    return
+                data = json.loads(self.rfile.read(length))
+                key = data.get("TAVILY_API_KEY") if isinstance(data, dict) and set(data) == {"TAVILY_API_KEY"} else None
+                if not isinstance(key, str) or not key.strip() or len(key.strip()) > 500:
+                    self.send_json(400, {"error": "Tavily API Key अवैध आहे"})
+                    return
+                credentials = load_tool_credentials()
+                if not isinstance(credentials.get("web_search"), dict):
+                    credentials["web_search"] = {}
+                credentials["web_search"]["TAVILY_API_KEY"] = key.strip()
+                save_tool_credentials(credentials)
+                self.send_json(200, {"success": True})
+            except Exception:
+                self.send_json(400, {"error": "Tavily Credential सेव्ह करता आली नाही"})
+            return
+
         if self.path == "/v1/notes":
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -1509,7 +1631,12 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 if not isinstance(arguments, dict):
                     self.send_json(400, {"error": "Invalid tool arguments"})
                     return
-                if tool_name == "get_weather":
+                if tool_name == "web_search":
+                    result = tavily_web_search(
+                        arguments.get("query", ""),
+                        arguments.get("max_results", 5)
+                    )
+                elif tool_name == "get_weather":
                     result = get_badnera_weather(arguments)
                 elif tool_name == "open_android_app":
                     app_name = arguments.get("app_name")
@@ -1633,6 +1760,22 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "web_search",
+                        "description": "इंटरनेटवरील ताजी माहिती, बातम्या आणि संशोधन शोधा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string"},
+                                "max_results": {"type": "integer", "minimum": 1, "maximum": 10}
+                            },
+                            "required": ["query"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_current_time",
                         "description": "सध्याची तारीख आणि वेळ मिळवा.",
                         "parameters": {
@@ -1653,6 +1796,23 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 "expression": {"type": "string", "description": "गणिती उदाहरण; उदा. २५०*१८/१००"}
                             },
                             "required": ["expression"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "smart_unit_convert",
+                        "description": "लांबी, वजन, द्रव, वेळ आणि तापमान यांचे एकक रूपांतर करा. उदा. 5 km to m किंवा 100 c to f.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "value": {"type": "number", "description": "रूपांतर करायचे संख्यात्मक मूल्य"},
+                                "from_unit": {"type": "string", "description": "मूळ एकक"},
+                                "to_unit": {"type": "string", "description": "लक्ष्य एकक"}
+                            },
+                            "required": ["value", "from_unit", "to_unit"],
                             "additionalProperties": False
                         }
                     }
@@ -2020,11 +2180,20 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             try:
                                 if arguments is None or argument_error:
                                     result = {"error": argument_error or "Tool arguments अवैध आहेत."}
+                                elif tool_name == "web_search":
+                                    result = tavily_web_search(
+                                        arguments["query"],
+                                        arguments.get("max_results", 5)
+                                    )
                                 elif tool_name == "smart_calculate":
                                     result = {
                                         "expression": arguments["expression"],
                                         "answer": smart_calculate(arguments["expression"])
                                     }
+                                elif tool_name == "smart_unit_convert":
+                                    result = smart_unit_convert(
+                                        arguments["value"], arguments["from_unit"], arguments["to_unit"]
+                                    )
                                 elif tool_name == "get_weather":
                                     result = get_badnera_weather(arguments)
                                 elif tool_name == "open_android_app":
@@ -2231,6 +2400,20 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "नोंद बदलता आली नाही: " + str(exc)[:180]})
 
     def do_DELETE(self):
+        route = self.path.split("?", 1)[0]
+        if route == "/v1/tools/web_search/credentials/TAVILY_API_KEY":
+            try:
+                credentials = load_tool_credentials()
+                web = credentials.get("web_search", {})
+                if isinstance(web, dict):
+                    web.pop("TAVILY_API_KEY", None)
+                    if not web:
+                        credentials.pop("web_search", None)
+                save_tool_credentials(credentials)
+                self.send_json(200, {"success": True})
+            except Exception:
+                self.send_json(500, {"error": "Credential हटवता आली नाही"})
+            return
         match = re.fullmatch(r"/v1/notes/([0-9a-fA-F-]{36})", self.path.split("?", 1)[0])
         if not match:
             self.send_json(404, {"error": "नोंद सापडली नाही"})
