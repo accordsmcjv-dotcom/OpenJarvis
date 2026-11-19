@@ -97,6 +97,22 @@ messages = [
 
 MEMORY_FILE = "memory.json"
 
+def listen_voice(timeout=15):
+    """सुरक्षित Voice Input: timeout किंवा recognition error आल्यास रिकामा मजकूर."""
+    try:
+        result = subprocess.run(
+            ["termux-speech-to-text"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False
+        )
+        if result.returncode == 0:
+            return (result.stdout or "").strip()
+        return ""
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return ""
+
 def load_memory():
     try:
         with open(MEMORY_FILE, "r") as f:
@@ -641,7 +657,7 @@ while True:
         if any(x in q for x in ["send whatsapp", "whatsapp message", "whatsapp msg", "send message", "मेसेज पाठव", "मेसेज पाठवा", "व्हॉट्सॲप मेसेज", "व्हाट्सएप मेसेज"]):
             print("JARVIS: Contact चे नाव सांगा.")
             subprocess.run(["termux-tts-speak", "Contact चे नाव सांगा"])
-            contact_name = subprocess.check_output(["termux-speech-to-text"], text=True).strip()
+            contact_name = listen_voice().strip()
 
             if not contact_name:
                 contact_name = input("Contact चे नाव टाइप करा: ").strip()
@@ -675,7 +691,7 @@ while True:
 
             print("JARVIS: आता तुमचा मेसेज बोला.")
             subprocess.run(["termux-tts-speak", "आता तुमचा मेसेज बोला"])
-            message = subprocess.check_output(["termux-speech-to-text"], text=True).strip()
+            message = listen_voice().strip()
 
             if not message:
                 print("आवाजातून मेसेज समजला नाही. कृपया मेसेज टाइप करा.")
@@ -688,7 +704,7 @@ while True:
             print("JARVIS: हा मेसेज पाठवू का? हो किंवा नाही सांगा.")
             subprocess.run(["termux-tts-speak", "हा मेसेज पाठवू का? हो किंवा नाही सांगा."])
             try:
-                confirmation = subprocess.check_output(["termux-speech-to-text"], text=True).strip().lower()
+                confirmation = listen_voice().strip().lower()
             except Exception:
                 confirmation = ""
 
@@ -713,7 +729,7 @@ while True:
             subprocess.run(["termux-tts-speak", "कोणाला SMS पाठवायचा आहे?"])
 
             try:
-                name = subprocess.check_output(["termux-speech-to-text"], text=True).strip()
+                name = listen_voice().strip()
             except Exception:
                 name = ""
 
@@ -749,7 +765,7 @@ while True:
             subprocess.run(["termux-tts-speak", "SMS काय पाठवायचा आहे?"])
 
             try:
-                message = subprocess.check_output(["termux-speech-to-text"], text=True).strip()
+                message = listen_voice().strip()
             except Exception:
                 message = ""
 
@@ -765,7 +781,7 @@ while True:
             subprocess.run(["termux-tts-speak", question])
 
             try:
-                confirmation = subprocess.check_output(["termux-speech-to-text"], text=True).strip().lower()
+                confirmation = listen_voice().strip().lower()
             except Exception:
                 confirmation = ""
 
@@ -790,7 +806,7 @@ while True:
         if q == "call" or any(x in q for x in ["call ", "make a call", "phone call", "कॉल", "फोन लावा", "फोन करा"]):
             print("JARVIS: कोणाला कॉल करायचा आहे?")
             subprocess.run(["termux-tts-speak", "कोणाला कॉल करायचा आहे?"])
-            name = subprocess.check_output(["termux-speech-to-text"], text=True).strip()
+            name = listen_voice().strip()
 
             if not name:
                 name = input("Contact चे नाव: ").strip()
@@ -930,11 +946,11 @@ while True:
         if any(x in clean_q for x in close_words):
             for app, (package, names) in close_apps.items():
                 if any(x in clean_q for x in names):
-                    result = subprocess.run(["/system/bin/input", "keyevent", "4"], capture_output=True, text=True)
+                    result = subprocess.run(["am", "start", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"], capture_output=True, text=True)
                     if result.returncode == 0:
-                        answer = app.capitalize() + " मागील स्क्रीनवर जात आहे."
+                        answer = app.capitalize() + " मधून बाहेर येऊन Home Screen उघडत आहे."
                     else:
-                        answer = "Back action करता आले नाही. Android permission तपासा."
+                        answer = "Home Screen उघडता आले नाही."
                     print("JARVIS:", answer)
                     subprocess.run(["termux-tts-speak", "-l", "mr-IN", answer])
                     matched = True

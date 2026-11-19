@@ -195,22 +195,30 @@ def openrouter_stream(client, headers, payload):
                     stream=True
                 )
             except httpx.TimeoutException as exc:
+                record_recovery_diagnostic(f"{provider}_TIMEOUT_RETRY_{attempt + 1}", exc)
                 print(f"[SHIVAM {provider} TIMEOUT RETRY] {attempt + 1}/3: {exc}")
                 if attempt == 2:
                     raise
                 time.sleep(attempt + 1)
                 continue
             except httpx.TransportError as exc:
+                record_recovery_diagnostic(f"{provider}_TRANSPORT_RETRY_{attempt + 1}", exc)
                 print(f"[SHIVAM {provider} RETRY] {attempt + 1}/3: {exc}")
                 if attempt == 2:
                     raise
                 time.sleep(attempt + 1)
                 continue
 
-            if response.status_code in (500, 502, 503, 504) and attempt < 2:
-                print(f"[SHIVAM {provider} RETRY] HTTP {response.status_code}, {attempt + 1}/3")
+            if (response.status_code in (408, 429) or 500 <= response.status_code <= 599) and attempt < 2:
+                retry_after = response.headers.get("Retry-After", "")
+                try:
+                    retry_delay = min(max(float(retry_after), 0), 30) if retry_after else attempt + 1
+                except (TypeError, ValueError):
+                    retry_delay = attempt + 1
+                record_recovery_diagnostic(f"{provider}_HTTP_{response.status_code}_RETRY_{attempt + 1}", RuntimeError("Provider HTTP retry"))
+                print(f"[SHIVAM {provider} RETRY] HTTP {response.status_code}, wait {retry_delay}s, {attempt + 1}/3")
                 response.close()
-                time.sleep(attempt + 1)
+                time.sleep(retry_delay)
                 continue
             return response
 
@@ -220,7 +228,7 @@ def openrouter_stream(client, headers, payload):
     try:
         response = send_with_retry(OPENROUTER_URL, headers, body, "OPENROUTER")
 
-        if response.status_code == 402 and body.get("model") != "openrouter/free":
+        if response.status_code in (402, 404) and body.get("model") != "openrouter/free":
             response.close()
             body["model"] = "openrouter/free"
             body["max_tokens"] = 8192
@@ -242,7 +250,7 @@ def openrouter_stream(client, headers, payload):
         response = None
 
     if response is None or (
-        response.status_code in (429, 500, 502, 503, 504)
+        (response.status_code in (404, 408, 429) or 500 <= response.status_code <= 599)
         and os.getenv("GROQ_API_KEY")
     ):
         if response is not None:
@@ -251,7 +259,7 @@ def openrouter_stream(client, headers, payload):
 
         groq_body = dict(body)
         groq_body["model"] = "openai/gpt-oss-20b"
-        groq_body["max_tokens"] = 512
+        groq_body["max_tokens"] = 2048
         groq_body["reasoning_effort"] = "low"
         groq_body.pop("reasoning", None)
         groq_headers = {
@@ -395,6 +403,71 @@ def is_sensitive_memory(key, value):
     ))
 
 
+
+def _read_notes():
+    notes = load_json(NOTES_FILE, [])
+    if not isinstance(notes, list) or not all(isinstance(item, dict) for item in notes):
+        raise ValueError("notes.json मधील माहिती योग्य स्वरूपात नाही.")
+    return notes
+
+
+def _write_notes(notes):
+    temp_path = NOTES_FILE + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as file:
+        json.dump(notes, file, ensure_ascii=False, indent=2)
+        file.write("\n")
+    os.chmod(temp_path, 0o600)
+    os.replace(temp_path, NOTES_FILE)
+    os.chmod(NOTES_FILE, 0o600)
+
+
+def add_note(text, title=""):
+    import uuid
+    text = str(text).strip()
+    title = str(title).strip()
+    if not text or len(text) > 10000:
+        return {"success": False, "error": "नोंदीचा मजकूर 1 ते 10000 अक्षरांचा असावा."}
+    if len(title) > 200:
+        return {"success": False, "error": "नोंदीचे शीर्षक 200 अक्षरांपेक्षा मोठे नसावे."}
+    notes = _read_notes()
+    note = {
+        "id": str(uuid.uuid4()),
+        "title": title,
+        "text": text,
+        "created_at": datetime.now().astimezone().isoformat(timespec="seconds")
+    }
+    notes.append(note)
+    _write_notes(notes)
+    return {"success": True, "note": note}
+
+
+def list_notes():
+    notes = _read_notes()
+    return {"success": True, "count": len(notes), "notes": notes}
+
+
+def search_notes(query):
+    query = str(query).strip().casefold()
+    if not query:
+        return {"success": False, "error": "शोधण्यासाठी शब्द द्या."}
+    matches = [
+        note for note in _read_notes()
+        if query in str(note.get("title", "")).casefold()
+        or query in str(note.get("text", "")).casefold()
+    ]
+    return {"success": True, "count": len(matches), "notes": matches}
+
+
+def delete_note(note_id):
+    note_id = str(note_id).strip()
+    notes = _read_notes()
+    remaining = [note for note in notes if str(note.get("id", "")) != note_id]
+    if len(remaining) == len(notes):
+        return {"success": False, "error": "या ID ची नोंद सापडली नाही."}
+    _write_notes(remaining)
+    return {"success": True, "message": "नोंद हटवली आहे."}
+
+
 def validate_tool_arguments(tool_name, arguments, tool_specs):
     if not isinstance(arguments, dict):
         return "Tool Arguments अवैध आहेत."
@@ -517,6 +590,15 @@ def build_system_prompt():
         "माहिती खात्रीशीर नसेल तर अनिश्चितता स्पष्ट सांग; अंदाजाला तथ्य म्हणून मांडू नकोस. "
         "गणिती उत्तरासाठी उपलब्ध Calculator Tool वापर आणि त्याचा निकाल बदलू नकोस. "
         "वेळ, हवामान, डिव्हाइस आणि Memory बाबत प्रत्यक्ष Tool निकालालाच प्राधान्य दे. "
+        "महत्त्वाचे तथ्य सांगण्यापूर्वी उपलब्ध पुरावे तपास. "
+        "ताजी किंवा बदलणारी माहिती असल्यास Web Search किंवा योग्य Tool वापर. "
+        "Search किंवा Tool वापरला नसेल तर तपासल्याचा दावा करू नकोस. "
+        "स्रोतांमध्ये विरोधाभास असल्यास तो स्पष्ट सांग. "
+        "पुरावा अपुरा असल्यास संभाव्य उत्तर आणि खात्रीशीर तथ्य यांत फरक ठेव. "
+        "नावे, तारखा, आकडे, आवृत्त्या आणि तांत्रिक तपशील स्वतःहून तयार करू नकोस. "
+        "Tool कडून मिळालेला निकाल बदलू नकोस किंवा त्यात नसलेली माहिती जोडू नकोस. "
+        "Memory मधील जुनी माहिती सध्याची आहे असे पडताळणीशिवाय सांगू नकोस. "
+        "उत्तर देण्यासाठी आवश्यक माहिती उपलब्ध नसेल तर स्पष्टपणे सांग किंवा एक नेमका प्रश्न विचार. "
         "Tool अपयशी ठरल्यास कृती पूर्ण झाली असे सांगू नकोस. "
         "वापरकर्त्याने दिलेली माहिती आणि तुझा निष्कर्ष यांत फरक स्पष्ट ठेव. "
         "उत्तर प्रश्नापुरते नेमके, सुसंगत आणि अनावश्यक पुनरावृत्तीविरहित ठेव. "
@@ -687,32 +769,61 @@ def detect_memory_conflicts():
 
 
 def recall_conversation_context(query="", limit=8):
-    """जुन्या संभाषणातून प्रश्नाशी संबंधित संदर्भ शोधा."""
+    """जुन्या संभाषणातून सर्वाधिक संबंधित संदर्भ शोधा."""
     if not isinstance(query, str) or not query.strip():
         return {"error": "शोधण्यासाठी प्रश्न किंवा शब्द आवश्यक आहेत."}
+
     try:
         limit = max(1, min(int(limit), 12))
     except (TypeError, ValueError):
         limit = 8
+
     history = load_history()
-    terms = [x for x in re.findall(r"[a-zA-Z0-9अ-ह]+", query.lower()) if len(x) > 1]
+    normalized_query = " ".join(query.casefold().split())
+    stop_words = {
+        "आहे", "आहेत", "होते", "होता", "होती", "मला", "माझे",
+        "माझा", "माझी", "तुझे", "तुमचे", "काय", "कसे", "कशी",
+        "आणि", "किंवा", "कर", "करा", "the", "is", "are", "was",
+        "what", "when", "where", "how", "did", "you", "me"
+    }
+    terms = [
+        term for term in re.findall(r"[^\W_]+", normalized_query, re.UNICODE)
+        if len(term) > 1 and term not in stop_words
+    ]
+
+    if not terms:
+        return {"query": query, "matches": [], "count": 0}
+
     matches = []
-    for item in reversed(history):
+    for position, item in enumerate(history):
         content = item.get("content", "")
         if not isinstance(content, str):
             continue
-        lowered = content.lower()
-        score = sum(1 for term in terms if term in lowered)
+
+        lowered = " ".join(content.casefold().split())
+        score = sum(min(lowered.count(term), 3) for term in set(terms))
+
+        if normalized_query in lowered:
+            score += 5
+
         if score:
             matches.append({
                 "role": item.get("role", ""),
                 "content": content[:700],
-                "match_score": score
+                "match_score": score,
+                "_position": position
             })
-        if len(matches) >= limit:
-            break
-    return {"query": query, "matches": matches, "count": len(matches)}
 
+    matches.sort(
+        key=lambda item: (item["match_score"], item["_position"]),
+        reverse=True
+    )
+
+    results = [
+        {key: value for key, value in item.items() if key != "_position"}
+        for item in matches[:limit]
+    ]
+    return {"query": query, "matches": results, "count": len(results)}
 
 def preview_memory_backup(filename):
     """Backup पुनर्संचयित करण्यापूर्वी सुरक्षितपणे तपासा; फाइल बदलू नका."""
@@ -1182,21 +1293,54 @@ def save_history(history):
 
 
 def build_context_summary(history):
+    """जुन्या संभाषणातील महत्त्वाचे निर्णय आणि संदर्भ जतन करा."""
     history = normalize_history(history)
     older = history[:-6]
-    parts = []
-    total = 0
-    for item in reversed(older):
-        content = " ".join(item["content"].split())[:350]
-        label = "वापरकर्ता" if item["role"] == "user" else "SHIVAM"
-        part = label + ": " + content
-        if total + len(part) > 3000:
-            break
-        parts.append(part)
-        total += len(part)
-    parts.reverse()
-    return "\n".join(parts)
+    if not older:
+        return ""
 
+    important_terms = (
+        "महत्त्वाचे", "लक्षात ठेव", "यापुढे", "नेहमी", "नको",
+        "हवे", "ठरवले", "समस्या", "पूर्ण झाले", "बाकी",
+        "api", "model", "error", "backup", "termux",
+        "openjarvis", "shivam", "jarvis"
+    )
+
+    candidates = []
+    for index, item in enumerate(older):
+        content = " ".join(item["content"].split())
+        if not content:
+            continue
+
+        lowered = content.casefold()
+        score = 3 if item["role"] == "user" else 1
+        score += sum(2 for term in important_terms if term in lowered)
+        score += min(sum(ch.isdigit() for ch in content) // 4, 2)
+
+        candidates.append({
+            "index": index,
+            "role": item["role"],
+            "content": content,
+            "score": score
+        })
+
+    selected = []
+    total = 0
+    for item in sorted(candidates, key=lambda x: (x["score"], x["index"]), reverse=True):
+        label = "वापरकर्ता" if item["role"] == "user" else "SHIVAM"
+        part = label + ": " + item["content"][:500]
+        if total + len(part) > 3000:
+            continue
+        selected.append((item["index"], part))
+        total += len(part)
+
+    selected.sort(key=lambda x: x[0])
+    if not selected:
+        return ""
+
+    return "महत्त्वाचे जुने संभाषण (कालक्रमानुसार):\n" + "\n".join(
+        part for _, part in selected
+    )
 
 def record_recovery_diagnostic(stage, exc):
     try:
@@ -1650,7 +1794,16 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         "message": "App उघडण्यासाठी मंजुरी मागितली आहे."
                     }
                 else:
-                    result = execute_tool(tool_name, arguments)
+                    if tool_name == "add_note":
+                        result = add_note(arguments["text"], arguments.get("title", ""))
+                    elif tool_name == "list_notes":
+                        result = list_notes()
+                    elif tool_name == "search_notes":
+                        result = search_notes(arguments["query"])
+                    elif tool_name == "delete_note":
+                        result = delete_note(arguments["note_id"])
+                    else:
+                        result = execute_tool(tool_name, arguments)
 
                 self.send_json(200, result)
             except Exception:
@@ -1722,6 +1875,16 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 "openrouter/auto": "OpenRouter Auto",
             }
             selected_model = model_labels.get(model_id, model_id)
+            messages[0]["content"] += (
+                "\\n\\nमराठी उत्तर गुणवत्ता नियम: वापरकर्त्याने मराठीत विचारल्यास "
+                "नैसर्गिक, शुद्ध आणि सहज समजणाऱ्या मराठीत उत्तर दे. "
+                "हिंदी शब्दरचना आणि अनावश्यक इंग्रजी टाळ. "
+                "व्याकरण, काळ, लिंग, वचन आणि आदरार्थी संबोधन योग्य ठेव. "
+                "तांत्रिक संज्ञा आवश्यक असल्यास त्यांचा मराठी अर्थ स्पष्ट कर. "
+                "प्रश्नाचा अर्थ न बदलता थेट उत्तर दे. "
+                "खात्री नसल्यास स्पष्ट सांग; तथ्ये बनवू नकोस. "
+                "उत्तर संक्षिप्त पण पूर्ण ठेव."
+            )
             messages[0]["content"] += (
                 "\n\nनिवडलेले AI मॉडेल: " + selected_model + ". "
                 "वापरकर्त्याने मॉडेलबद्दल विचारल्यास ही माहिती सांग. "
@@ -1984,6 +2147,57 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "add_note",
+                        "description": "नवीन वैयक्तिक नोंद जतन करा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "text": {"type": "string", "description": "नोंदीचा मजकूर"},
+                                "title": {"type": "string", "description": "नोंदीचे शीर्षक"}
+                            },
+                            "required": ["text"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "list_notes",
+                        "description": "जतन केलेल्या सर्व नोंदी दाखवा.",
+                        "parameters": {"type": "object", "properties": {}}
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "search_notes",
+                        "description": "जतन केलेल्या नोंदींमध्ये शब्द शोधा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "शोधायचा शब्द किंवा मजकूर"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "delete_note",
+                        "description": "नोंदीच्या अचूक ID द्वारे ती नोंद हटवा.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "note_id": {"type": "string", "description": "नोंदीचा ID"}
+                            },
+                            "required": ["note_id"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_available_tools",
                         "description": "JARVIS ची उपलब्ध Tools यादी मिळवा.",
                         "parameters": {
@@ -2075,7 +2289,14 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 if isinstance(content, str):
                                     answer += content
 
+                                executed_tool_ids = set()
                                 for call in delta.get("tool_calls", []):
+                                    tool_call_id = getattr(call, 'id', None)
+                                    if tool_call_id:
+                                        if tool_call_id in executed_tool_ids:
+                                            print('[SHIVAM] Duplicate Tool Action रोखली.')
+                                            continue
+                                        executed_tool_ids.add(tool_call_id)
                                     index = call.get("index", 0)
                                     item = pending_calls.setdefault(index, {
                                         "id": "",
@@ -2224,6 +2445,14 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                     result = memory_integrity_check()
                                 elif tool_name == "list_memory_backups":
                                     result = list_memory_backups()
+                                elif tool_name == "add_note":
+                                    result = add_note(arguments["text"], arguments.get("title", ""))
+                                elif tool_name == "list_notes":
+                                    result = list_notes()
+                                elif tool_name == "search_notes":
+                                    result = search_notes(arguments["query"])
+                                elif tool_name == "delete_note":
+                                    result = delete_note(arguments["note_id"])
                                 elif tool_name in ("get_current_time", "get_system_info", "get_available_tools"):
                                     result = execute_tool(tool_name, arguments)
                                 else:
@@ -2307,6 +2536,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                             if isinstance(content, str):
                                                 answer += content
                                     except Exception as stream_error:
+                                        record_recovery_diagnostic("FINAL_STREAM_PARSE", stream_error)
                                         print("[SHIVAM FINAL STREAM PARSE ERROR]", repr(stream_error))
                                         print("[SHIVAM FINAL STREAM DATA]", data[:1500])
 
@@ -2435,6 +2665,29 @@ class JarvisAPI(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         print("[JARVIS API]", format % args)
 
+
+
+# SHIVAM GROUP 1: Advanced Marathi Response Quality
+_original_build_system_prompt = build_system_prompt
+
+def _shivam_marathi_quality_wrapper():
+    prompt = _original_build_system_prompt()
+    extra_rules = """
+अतिरिक्त भाषा आणि उत्तर गुणवत्ता नियम:
+1. वापरकर्त्याने मराठीत विचारल्यास नैसर्गिक, शुद्ध आणि व्याकरणदृष्ट्या योग्य मराठीत उत्तर दे.
+2. मराठी उत्तरात विनाकारण हिंदी शब्द, हिंदी वाक्यरचना किंवा हिंदी-मराठी मिश्र भाषा वापरू नको.
+3. शक्यतो मराठी देवनागरी लिपी वापर; तांत्रिक संज्ञा आवश्यक असल्यास प्रचलित इंग्रजी शब्द वापर.
+4. वापरकर्त्याने दुसऱ्या भाषेत विचारल्यास त्याच भाषेत उत्तर दे.
+5. उत्तर देण्यापूर्वी वाक्यरचना, शब्दांचा अर्थ आणि व्याकरण मनात तपास.
+6. उत्तर स्पष्ट, थेट आणि आवश्यक तेवढेच सविस्तर ठेव; एकच मुद्दा पुन्हा पुन्हा सांगू नको.
+7. माहिती माहीत नसल्यास अंदाजाने तथ्य सांगू नको; अनिश्चितता स्पष्ट कर.
+8. प्रत्यक्ष कृती पूर्ण झाली नसेल तर ती पूर्ण झाल्याचा दावा करू नको.
+"""
+    if extra_rules not in prompt:
+        prompt += "\n" + extra_rules
+    return prompt
+
+build_system_prompt = _shivam_marathi_quality_wrapper
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer((HOST, PORT), JarvisAPI)
