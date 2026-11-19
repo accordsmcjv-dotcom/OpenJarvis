@@ -24,32 +24,56 @@ export async function* streamChat(
   if (!response.ok) {
     throw new Error(`Chat request failed: ${response.status}`);
   }
+  if (!response.body) {
+    throw new Error('Chat response has no readable stream');
+  }
 
-  const reader = response.body!.getReader();
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let currentEvent: string | undefined;
+  let dataLines: string[] = [];
+
+  const dispatch = (): SSEEvent | undefined => {
+    if (dataLines.length === 0) {
+      currentEvent = undefined;
+      return undefined;
+    }
+    const data = dataLines.join('\n');
+    const event = currentEvent;
+    currentEvent = undefined;
+    dataLines = [];
+    return { event, data };
+  };
 
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      buffer = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      buffer = done ? '' : (lines.pop() || '');
 
       for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          currentEvent = line.slice(7).trim();
-        } else if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') return;
-          yield { event: currentEvent, data };
-          currentEvent = undefined;
-        } else if (line.trim() === '') {
-          currentEvent = undefined;
+        if (line === '') {
+          const parsed = dispatch();
+          if (parsed) {
+            if (parsed.data === '[DONE]') return;
+            yield parsed;
+          }
+        } else if (line.startsWith(':')) {
+          continue;
+        } else if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).replace(/^ /, ''));
         }
+      }
+
+      if (done) {
+        const parsed = dispatch();
+        if (parsed && parsed.data !== '[DONE]') yield parsed;
+        break;
       }
     }
   } finally {
