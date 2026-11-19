@@ -170,8 +170,12 @@ export function InputArea() {
                 toast.success('तुमचा प्रश्न ऐकला आहे. पाठवण्यासाठी Send दाबा.');
               }
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
+            void ShivamWakeWord.startListening().catch(() => {});
           }, 7000);
-        } catch { toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.'); }
+        } catch {
+          toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.');
+          void ShivamWakeWord.startListening().catch(() => {});
+        }
       };
       if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
         const utterance = new SpeechSynthesisUtterance('जी, सांगा. काय मदत करू?');
