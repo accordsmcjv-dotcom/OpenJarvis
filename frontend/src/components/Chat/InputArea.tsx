@@ -11,7 +11,7 @@ import {
   resolveChatEngine,
 } from '../../lib/chat-telemetry';
 import { MicButton } from './MicButton';
-import { useSpeech } from '../../hooks/useSpeech';
+import { useSpeech } from '../../hooks/useSpeech';\nimport { registerPlugin } from '@capacitor/core';\n\ninterface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }\nconst ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
 import type {
   ChatMessage,
   MessageTelemetry,
@@ -144,116 +144,46 @@ export function InputArea() {
   }, [speechError]);
 
 
-  // SHIVAM wake-word listener: works while the app is open and visible.
-  // Android does not permit a normal WebView to run an always-on hotword
-  // listener after the app is closed; that requires a native foreground service.
+  // Android foreground microphone service keeps wake-word detection active
+  // with screen locked; Android shows an ongoing microphone notification.
   useEffect(() => {
-    if (!speechEnabled || !speechAvailable || speechState !== 'idle') return;
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    let cancelled = false;
-    let restartTimer: number | null = null;
-    let commandCaptureStarted = false;
-
-    recognition.lang = "mr-IN";
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 3;
-
-    const resumeListening = () => {
-      if (cancelled || wakeRecordingRef.current || document.visibilityState !== 'visible') return;
-      try { recognition.start(); } catch {}
-    };
-
-    recognition.onresult = (event: any) => {
-      const result = event.results?.[event.results.length - 1];
-      const alternatives = Array.from(result || []).map((item: any) =>
-        String(item?.transcript || "").toLowerCase().trim()
-      );
-      const wakeDetected = alternatives.some((spoken) =>
-        /(?:hey\s*)?shivam|शिवम|शिवम्|शिवाम/.test(spoken)
-      );
-      if (!wakeDetected) return;
-
-      wakeRecordingRef.current = true;
-      recognition.stop();
+    let mounted = true;
+    let wakeTimer: number | null = null;
+    const handleWake = async () => {
+      if (!mounted) return;
       toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
-
-      // Speak the acknowledgement, then open the microphone for the command.
-      const beginCommandCapture = async () => {
-        if (commandCaptureStarted) return;
-        commandCaptureStarted = true;
-        if (cancelled || document.visibilityState !== 'visible') {
-          wakeRecordingRef.current = false;
-          commandCaptureStarted = false;
-          return;
-        }
-        await startRecording();
-        wakeTimerRef.current = window.setTimeout(async () => {
-          try {
-            const command = await stopRecording();
-            if (command) {
-              setInput((previous) => previous ? `${previous} ${command}` : command);
-              toast.success('तुमचा आवाज मजकूरात घेतला आहे. पाठवण्यासाठी Send दाबा.');
-            }
-          } catch {
-            toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.');
-          }
-          wakeRecordingRef.current = false;
-          commandCaptureStarted = false;
-          resumeListening();
-        }, 7000);
-      };
-
-      if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+      const capture = async () => {
+        if (!mounted) return;
         try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance('जी, सांगा. काय मदत करू?');
-          utterance.lang = 'mr-IN';
-          utterance.rate = 0.95;
-          utterance.onend = () => { void beginCommandCapture(); };
-          utterance.onerror = () => { window.setTimeout(() => { void beginCommandCapture(); }, 500); };
-          window.speechSynthesis.speak(utterance);
-          window.setTimeout(() => {
-            if (!wakeTimerRef.current && wakeRecordingRef.current) void beginCommandCapture();
-          }, 2500);
-        } catch {
-          window.setTimeout(() => { void beginCommandCapture(); }, 500);
-        }
-      } else {
-        window.setTimeout(() => { void beginCommandCapture(); }, 500);
-      }
+          await startRecording();
+          wakeTimer = window.setTimeout(async () => {
+            try {
+              const command = await stopRecording();
+              if (command) {
+                setInput((previous) => previous ? `${previous} ${command}` : command);
+                toast.success('तुमचा प्रश्न ऐकला आहे. पाठवण्यासाठी Send दाबा.');
+              }
+            } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
+          }, 7000);
+        } catch { toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.'); }
+      };
+      if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+        const utterance = new SpeechSynthesisUtterance('जी, सांगा. काय मदत करू?');
+        utterance.lang = 'mr-IN'; utterance.rate = 0.95;
+        utterance.onend = () => { void capture(); };
+        utterance.onerror = () => { void capture(); };
+        window.speechSynthesis.cancel(); window.speechSynthesis.speak(utterance);
+        window.setTimeout(() => { if (wakeTimer === null) void capture(); }, 2500);
+      } else { void capture(); }
     };
-
-    recognition.onerror = () => {};
-    recognition.onend = () => {
-      if (!cancelled && !wakeRecordingRef.current && document.visibilityState === 'visible') {
-        restartTimer = window.setTimeout(resumeListening, 700);
-      }
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') resumeListening();
-      else {
-        if (restartTimer) window.clearTimeout(restartTimer);
-        try { recognition.stop(); } catch {}
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    resumeListening();
-
+    window.addEventListener('shivamWakeWord', handleWake);
+    if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
     return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (restartTimer) window.clearTimeout(restartTimer);
-      if (wakeTimerRef.current) window.clearTimeout(wakeTimerRef.current);
-      try { recognition.stop(); } catch {}
+      mounted = false;
+      window.removeEventListener('shivamWakeWord', handleWake);
+      if (wakeTimer !== null) window.clearTimeout(wakeTimer);
     };
-  }, [speechEnabled, speechAvailable, speechState, startRecording, stopRecording]);
+  }, [speechEnabled, startRecording, stopRecording]);
 
   const handleMicClick = useCallback(async () => {
     if (speechState === 'recording') {
