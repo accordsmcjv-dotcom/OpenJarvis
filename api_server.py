@@ -2482,9 +2482,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 "latency": latency
                             }
                             self.wfile.write(
-                                ("event: tool_call_end\\ndata: " +
+                                ("event: tool_call_end\ndata: " +
                                  json.dumps(end_event, ensure_ascii=False) +
-                                 "\\n\\n").encode("utf-8")
+                                 "\n\n").encode("utf-8")
                             )
                             self.wfile.flush()
 
