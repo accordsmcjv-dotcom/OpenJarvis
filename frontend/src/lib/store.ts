@@ -112,7 +112,7 @@ interface Settings {
 
 function loadSettings(): Settings {
   const defaults: Settings = {
-    theme: 'system',
+    theme: 'dark',
     apiUrl: '',
     apiKey: '',
     fontSize: 'default',
@@ -127,7 +127,10 @@ function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const saved = JSON.parse(raw);
+    // SHIVAM's cinematic HUD is designed for dark mode; migrate the old
+    // system default while preserving an explicit light-mode choice.
+    return { ...defaults, ...saved, theme: saved.theme === 'light' ? 'light' : 'dark' };
   } catch {
     return defaults;
   }

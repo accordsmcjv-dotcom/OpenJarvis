@@ -181,22 +181,37 @@ export function ChatArea() {
         className="flex-1 overflow-y-auto"
       >
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full px-4">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
-            >
-              <Sparkles size={24} />
+          <div className="shivam-home flex flex-col items-center justify-center h-full px-4">
+            <div className="shivam-home-meta">
+              <span className="hud-heartbeat" /> PERSONAL AI SYSTEM
+              <span className="shivam-meta-line" />
+              <span>MK·01</span>
             </div>
-            <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+            <div className="shivam-reactor" aria-hidden="true">
+              <div className="shivam-reactor-ring shivam-ring-outer" />
+              <div className="shivam-reactor-ring shivam-ring-mid" />
+              <div className="shivam-reactor-ring shivam-ring-inner" />
+              <div className="shivam-reactor-cross shivam-cross-a" />
+              <div className="shivam-reactor-cross shivam-cross-b" />
+              <div className="shivam-reactor-core">
+                <Sparkles size={34} strokeWidth={1.25} />
+              </div>
+              <span className="shivam-orbit-dot shivam-dot-a" />
+              <span className="shivam-orbit-dot shivam-dot-b" />
+              <span className="shivam-orbit-dot shivam-dot-c" />
+            </div>
+            <div className="shivam-wordmark">SHIVAM</div>
+            <div className="shivam-subtitle">ARTIFICIAL INTELLIGENCE</div>
+            <div className="shivam-ready"><span className="hud-heartbeat" /> SYSTEM ONLINE <span>•</span> READY TO ASSIST</div>
+            <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
             </h2>
             <p className="text-sm text-center max-w-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
-              Ask anything. Your AI runs locally — private, fast, and always available.
+              Your personal intelligence system. What can I do for you?
             </p>
 
             {/* Quick action hints */}
-            <div className="flex gap-3">
+            <div className="shivam-quick-actions flex gap-3">
               <button
                 onClick={() => navigate('/data-sources')}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs cursor-pointer transition-colors"

@@ -791,3 +791,30 @@
 @media (prefers-reduced-motion: reduce) {
   .hud-backdrop::before { animation: none; }
 }
+
+
+/* ── SHIVAM cinematic reactor interface ───────────────────────────── */
+.shivam-home { position: relative; isolation: isolate; overflow: hidden; }
+.shivam-home-meta { display:flex; align-items:center; gap:9px; margin-bottom:clamp(8px,2vh,22px); color:rgba(104,220,255,.62); font:10px var(--font-hud); letter-spacing:.22em; }
+.shivam-meta-line { width:clamp(28px,8vw,76px); height:1px; background:linear-gradient(90deg,rgba(34,211,238,.45),transparent); }
+.shivam-reactor { position:relative; width:clamp(190px,43vw,290px); aspect-ratio:1; display:grid; place-items:center; filter:drop-shadow(0 0 28px rgba(0,190,255,.16)); }
+.shivam-reactor::before { content:""; position:absolute; inset:20%; border-radius:50%; background:radial-gradient(circle,rgba(0,190,255,.17),rgba(0,90,180,.07) 48%,transparent 72%); animation:shivam-core-pulse 3.2s ease-in-out infinite; }
+.shivam-reactor-ring { position:absolute; border-radius:50%; border:1px solid rgba(65,207,255,.28); }
+.shivam-ring-outer { inset:2%; border-style:dashed; border-color:rgba(65,207,255,.36); animation:shivam-spin 32s linear infinite; }
+.shivam-ring-mid { inset:12%; border-width:2px; border-color:rgba(65,207,255,.2) transparent rgba(65,207,255,.5) transparent; animation:shivam-spin 13s linear infinite reverse; }
+.shivam-ring-inner { inset:23%; border-color:rgba(105,224,255,.48); box-shadow:inset 0 0 22px rgba(0,190,255,.12),0 0 22px rgba(0,190,255,.12); }
+.shivam-reactor-cross { position:absolute; background:rgba(65,207,255,.22); }
+.shivam-cross-a { width:1px; height:100%; }
+.shivam-cross-b { width:100%; height:1px; }
+.shivam-reactor-core { position:relative; z-index:1; width:31%; aspect-ratio:1; display:grid; place-items:center; border-radius:50%; color:#b9f4ff; border:1px solid rgba(124,230,255,.72); background:radial-gradient(circle at 38% 32%,rgba(160,245,255,.32),rgba(0,111,180,.24) 48%,rgba(2,12,28,.94) 76%); box-shadow:0 0 18px rgba(0,190,255,.45),0 0 55px rgba(0,145,255,.24),inset 0 0 20px rgba(65,207,255,.28); animation:shivam-core-pulse 3.2s ease-in-out infinite; }
+.shivam-orbit-dot { position:absolute; width:6px; height:6px; border-radius:50%; background:#9ceeff; box-shadow:0 0 12px 3px rgba(65,207,255,.55); }
+.shivam-dot-a { top:12%; left:28%; }.shivam-dot-b { right:10%; top:53%; }.shivam-dot-c { bottom:16%; left:25%; }
+.shivam-wordmark { margin-top:-2px; color:#d9f8ff; font:500 clamp(25px,6vw,36px) var(--font-display); letter-spacing:.38em; padding-left:.38em; text-shadow:0 0 18px rgba(34,211,238,.38); }
+.shivam-subtitle { margin-top:3px; color:rgba(117,218,255,.56); font:9px var(--font-hud); letter-spacing:.36em; }
+.shivam-ready { display:flex; align-items:center; gap:9px; margin-top:17px; color:rgba(114,222,255,.78); font:9px var(--font-hud); letter-spacing:.14em; }
+.shivam-ready > span:not(.hud-heartbeat) { color:rgba(114,222,255,.38); }
+.shivam-quick-actions { flex-wrap:wrap; justify-content:center; }
+@keyframes shivam-spin { to { transform:rotate(360deg); } }
+@keyframes shivam-core-pulse { 0%,100% { transform:scale(.97); opacity:.78; } 50% { transform:scale(1.035); opacity:1; } }
+@media (max-width:420px) { .shivam-reactor { width:clamp(174px,48vw,220px); } .shivam-home-meta { margin-bottom:6px; } .shivam-ready { font-size:8px; } }
+@media (prefers-reduced-motion:reduce) { .shivam-ring-outer,.shivam-ring-mid,.shivam-reactor-core,.shivam-reactor::before { animation:none; } }
