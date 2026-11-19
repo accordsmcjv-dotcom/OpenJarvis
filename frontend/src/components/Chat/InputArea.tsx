@@ -158,6 +158,7 @@ export function InputArea() {
     const recognition = new SpeechRecognition();
     let cancelled = false;
     let restartTimer: number | null = null;
+    let commandCaptureStarted = false;
 
     recognition.lang = "mr-IN";
     recognition.continuous = true;
@@ -185,8 +186,11 @@ export function InputArea() {
 
       // Speak the acknowledgement, then open the microphone for the command.
       const beginCommandCapture = async () => {
+        if (commandCaptureStarted) return;
+        commandCaptureStarted = true;
         if (cancelled || document.visibilityState !== 'visible') {
           wakeRecordingRef.current = false;
+          commandCaptureStarted = false;
           return;
         }
         await startRecording();
@@ -201,6 +205,7 @@ export function InputArea() {
             toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.');
           }
           wakeRecordingRef.current = false;
+          commandCaptureStarted = false;
           resumeListening();
         }, 7000);
       };

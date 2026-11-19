@@ -120,7 +120,7 @@ function loadSettings(): Settings {
     defaultAgent: '',
     temperature: 0.7,
     maxTokens: 4096,
-    speechEnabled: false,
+    speechEnabled: true,
     voiceOutputEnabled: false,
     voiceAutoplay: false,
   };
@@ -128,8 +128,13 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
     const saved = JSON.parse(raw);
-    // SHIVAM's cinematic HUD is designed for dark mode; migrate the old
-    // system default while preserving an explicit light-mode choice.
+    // The user requested SHIVAM wake-word activation. Enable voice input once
+    // on upgrade; they can still switch it off in Settings later.
+    if (!localStorage.getItem('shivam-wakeword-migrated')) {
+      saved.speechEnabled = true;
+      localStorage.setItem('shivam-wakeword-migrated', '1');
+    }
+    // Keep the cinematic HUD dark while preserving an explicit light choice.
     return { ...defaults, ...saved, theme: saved.theme === 'light' ? 'light' : 'dark' };
   } catch {
     return defaults;
