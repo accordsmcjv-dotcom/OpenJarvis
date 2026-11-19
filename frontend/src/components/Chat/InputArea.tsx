@@ -149,11 +149,13 @@ export function InputArea() {
   useEffect(() => {
     let mounted = true;
     let wakeTimer: number | null = null;
+    let captureStarted = false;
     const handleWake = async () => {
       if (!mounted) return;
       toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
       const capture = async () => {
-        if (!mounted) return;
+        if (!mounted || captureStarted) return;
+        captureStarted = true;
         try {
           await startRecording();
           wakeTimer = window.setTimeout(async () => {
@@ -173,11 +175,12 @@ export function InputArea() {
         utterance.onend = () => { void capture(); };
         utterance.onerror = () => { void capture(); };
         window.speechSynthesis.cancel(); window.speechSynthesis.speak(utterance);
-        window.setTimeout(() => { if (wakeTimer === null) void capture(); }, 2500);
+        window.setTimeout(() => { if (!captureStarted) void capture(); }, 3500);
       } else { void capture(); }
     };
     window.addEventListener('shivamWakeWord', handleWake);
     if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
+    else void ShivamWakeWord.stopListening().catch(() => {});
     return () => {
       mounted = false;
       window.removeEventListener('shivamWakeWord', handleWake);
