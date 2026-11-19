@@ -292,6 +292,8 @@ export function InputArea() {
     abortRef.current = controller;
 
     let accumulatedContent = '';
+    let lastStreamEvent = 'none';
+    let lastStreamData = '';
     let usage: TokenUsage | undefined;
     let complexity: { score: number; tier: string; suggested_max_tokens: number } | undefined;
     let routedEngine: string | undefined;
@@ -450,7 +452,9 @@ export function InputArea() {
         { model: selectedModel, messages: apiMessages, stream: true, temperature, max_tokens: maxTokens },
         controller.signal,
       )) {
-        const eventName = sseEvent.event;
+        const eventName = sseEvent.event || 'message';
+        lastStreamEvent = eventName;
+        lastStreamData = (sseEvent.data || '').slice(0, 500);
 
         if (eventName === 'agent_turn_start') {
           setStreamState({ phase: 'Agent thinking...' });
@@ -557,7 +561,8 @@ export function InputArea() {
       useAppStore.getState().setLiveEnergy(null);
     } finally {
       if (!accumulatedContent) {
-        accumulatedContent = 'No response was generated. Please try again.';
+        accumulatedContent = `SHIVAM निदान: उत्तराचा मजकूर मिळाला नाही. API: ${getBase()}. निवडलेले मॉडेल: ${selectedModel}. शेवटचा SSE इव्हेंट: ${lastStreamEvent}. डेटा: ${lastStreamData || '(रिकामा)'}`;
+        useAppStore.getState().addLogEntry({ timestamp: Date.now(), level: 'error', category: 'chat', message: accumulatedContent });
       }
       const totalMs = Date.now() - startTime;
       const appState = useAppStore.getState();
