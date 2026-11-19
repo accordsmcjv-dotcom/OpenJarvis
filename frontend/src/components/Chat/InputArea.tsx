@@ -144,7 +144,9 @@ export function InputArea() {
   }, [speechError]);
 
 
-  // Hey JARVIS foreground wake-word listener
+  // SHIVAM wake-word listener: works while the app is open and visible.
+  // Android does not permit a normal WebView to run an always-on hotword
+  // listener after the app is closed; that requires a native foreground service.
   useEffect(() => {
     if (!speechEnabled || !speechAvailable || speechState !== 'idle') return;
 
@@ -155,57 +157,94 @@ export function InputArea() {
 
     const recognition = new SpeechRecognition();
     let cancelled = false;
+    let restartTimer: number | null = null;
 
     recognition.lang = "mr-IN";
     recognition.continuous = true;
     recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
 
     const resumeListening = () => {
-      if (cancelled || wakeRecordingRef.current) return;
+      if (cancelled || wakeRecordingRef.current || document.visibilityState !== 'visible') return;
       try { recognition.start(); } catch {}
     };
 
     recognition.onresult = (event: any) => {
       const result = event.results?.[event.results.length - 1];
-      const spoken = String(result?.[0]?.transcript || "").toLowerCase();
-
-      if (!/(hey\s*jarvis|हे\s*जार्विस|ए\s*जार्विस)/i.test(spoken)) return;
+      const alternatives = Array.from(result || []).map((item: any) =>
+        String(item?.transcript || "").toLowerCase().trim()
+      );
+      const wakeDetected = alternatives.some((spoken) =>
+        /(?:hey\s*)?shivam|शिवम|शिवम्|शिवाम/.test(spoken)
+      );
+      if (!wakeDetected) return;
 
       wakeRecordingRef.current = true;
       recognition.stop();
+      toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
 
-      window.setTimeout(async () => {
-        if (cancelled) return;
-
+      // Speak the acknowledgement, then open the microphone for the command.
+      const beginCommandCapture = async () => {
+        if (cancelled || document.visibilityState !== 'visible') {
+          wakeRecordingRef.current = false;
+          return;
+        }
         await startRecording();
-
         wakeTimerRef.current = window.setTimeout(async () => {
           try {
             const command = await stopRecording();
             if (command) {
-              setInput((previous) =>
-                previous ? `${previous} ${command}` : command
-              );
+              setInput((previous) => previous ? `${previous} ${command}` : command);
+              toast.success('तुमचा आवाज मजकूरात घेतला आहे. पाठवण्यासाठी Send दाबा.');
             }
-          } catch {}
-
+          } catch {
+            toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.');
+          }
           wakeRecordingRef.current = false;
           resumeListening();
         }, 7000);
-      }, 500);
+      };
+
+      if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance('जी, सांगा. काय मदत करू?');
+          utterance.lang = 'mr-IN';
+          utterance.rate = 0.95;
+          utterance.onend = () => { void beginCommandCapture(); };
+          utterance.onerror = () => { window.setTimeout(() => { void beginCommandCapture(); }, 500); };
+          window.speechSynthesis.speak(utterance);
+          window.setTimeout(() => {
+            if (!wakeTimerRef.current && wakeRecordingRef.current) void beginCommandCapture();
+          }, 2500);
+        } catch {
+          window.setTimeout(() => { void beginCommandCapture(); }, 500);
+        }
+      } else {
+        window.setTimeout(() => { void beginCommandCapture(); }, 500);
+      }
     };
 
     recognition.onerror = () => {};
     recognition.onend = () => {
-      if (!cancelled && !wakeRecordingRef.current) {
-        window.setTimeout(resumeListening, 700);
+      if (!cancelled && !wakeRecordingRef.current && document.visibilityState === 'visible') {
+        restartTimer = window.setTimeout(resumeListening, 700);
       }
     };
-
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resumeListening();
+      else {
+        if (restartTimer) window.clearTimeout(restartTimer);
+        try { recognition.stop(); } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     resumeListening();
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (restartTimer) window.clearTimeout(restartTimer);
       if (wakeTimerRef.current) window.clearTimeout(wakeTimerRef.current);
       try { recognition.stop(); } catch {}
     };
