@@ -534,7 +534,7 @@ export function InputArea() {
                 lastFlush = now;
               }
             }
-            if (data.choices?.[0]?.finish_reason === 'stop') break;
+            // Wait for [DONE]; providers may send content after finish_reason.
           } catch {}
         }
       }
