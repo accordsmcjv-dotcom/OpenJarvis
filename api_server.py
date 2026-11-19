@@ -2503,43 +2503,47 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         }
 
                         final_answer_start = len(answer)
-                        with openrouter_stream(client, headers, final_payload) as final_upstream:
-
-                            if final_upstream.status_code != 200:
-                                error_text = final_upstream.read().decode("utf-8", "replace")
-                                print("[OPENROUTER FINAL ERROR]", final_upstream.status_code, error_text[:1000])
-                                fallback = friendly_provider_error(
-                                    final_upstream.status_code, error_text,
-                                    final_upstream.extensions.get("jarvis_model", "AI")
-                                )
-                                answer += fallback
-                                error_chunk = {
-                                    "choices": [{
-                                        "delta": {"content": fallback},
-                                        "finish_reason": "stop"
-                                    }]
-                                }
-                            else:
-                                for line in safe_stream_lines(final_upstream, 'FINAL'):
-                                    if not line.startswith("data:"):
-                                        continue
-
-                                    data = line[5:].strip()
-                                    if data == "[DONE]":
-                                        break
-
-                                    try:
-                                        chunk = json.loads(data)
-                                        choices = chunk.get("choices", [])
-                                        if choices:
-                                            content = choices[0].get("delta", {}).get("content")
-                                            if isinstance(content, str):
-                                                answer += content
-                                    except Exception as stream_error:
-                                        record_recovery_diagnostic("FINAL_STREAM_PARSE", stream_error)
-                                        print("[SHIVAM FINAL STREAM PARSE ERROR]", repr(stream_error))
-                                        print("[SHIVAM FINAL STREAM DATA]", data[:1500])
-
+                        try:
+                            with openrouter_stream(client, headers, final_payload) as final_upstream:
+    
+                                if final_upstream.status_code != 200:
+                                    error_text = final_upstream.read().decode("utf-8", "replace")
+                                    print("[OPENROUTER FINAL ERROR]", final_upstream.status_code, error_text[:1000])
+                                    fallback = friendly_provider_error(
+                                        final_upstream.status_code, error_text,
+                                        final_upstream.extensions.get("jarvis_model", "AI")
+                                    )
+                                    answer += fallback
+                                    error_chunk = {
+                                        "choices": [{
+                                            "delta": {"content": fallback},
+                                            "finish_reason": "stop"
+                                        }]
+                                    }
+                                else:
+                                    for line in safe_stream_lines(final_upstream, 'FINAL'):
+                                        if not line.startswith("data:"):
+                                            continue
+    
+                                        data = line[5:].strip()
+                                        if data == "[DONE]":
+                                            break
+    
+                                        try:
+                                            chunk = json.loads(data)
+                                            choices = chunk.get("choices", [])
+                                            if choices:
+                                                content = choices[0].get("delta", {}).get("content")
+                                                if isinstance(content, str):
+                                                    answer += content
+                                        except Exception as stream_error:
+                                            record_recovery_diagnostic("FINAL_STREAM_PARSE", stream_error)
+                                            print("[SHIVAM FINAL STREAM PARSE ERROR]", repr(stream_error))
+                                            print("[SHIVAM FINAL STREAM DATA]", data[:1500])
+    
+                        except Exception as final_stream_error:
+                            print("[SHIVAM FINAL STREAM ERROR]", type(final_stream_error).__name__)
+                            record_recovery_diagnostic("FINAL_STREAM", final_stream_error)
 
                     final_part = correct_marathi(answer[final_answer_start:])
                     answer = answer[:final_answer_start] + final_part
