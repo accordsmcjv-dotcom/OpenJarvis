@@ -11,7 +11,11 @@ import {
   resolveChatEngine,
 } from '../../lib/chat-telemetry';
 import { MicButton } from './MicButton';
-import { useSpeech } from '../../hooks/useSpeech';\nimport { registerPlugin } from '@capacitor/core';\n\ninterface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }\nconst ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
+import { useSpeech } from '../../hooks/useSpeech';
+import { registerPlugin } from '@capacitor/core';
+
+interface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }
+const ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
 import type {
   ChatMessage,
   MessageTelemetry,
@@ -389,7 +393,9 @@ export function InputArea() {
             // generated" fallback and has no way to self-diagnose.
             const msg = ev.message || 'Research failed (no detail provided)';
             accumulatedContent = accumulatedContent
-              ? `${accumulatedContent}\n\n**Research stopped:** ${msg}`
+              ? `${accumulatedContent}
+
+**Research stopped:** ${msg}`
               : `**Research failed:** ${msg}`;
             setStreamState({ content: accumulatedContent, phase: '' });
             useAppStore.getState().addLogEntry({
