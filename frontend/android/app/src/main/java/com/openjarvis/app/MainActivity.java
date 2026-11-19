@@ -25,7 +25,7 @@ public class MainActivity extends BridgeActivity {
     private void dispatchWakeIntent(Intent intent) {
         if (intent == null || !"com.openjarvis.app.SHIVAM_WAKE".equals(intent.getAction())) return;
         intent.setAction(Intent.ACTION_MAIN);
-        new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getBridge()!=null && getBridge().getWebView()!=null) getBridge().getWebView().evaluateJavascript(\"window.dispatchEvent(new Event('shivamWakeWord'))\", null); }, 1100);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getBridge()!=null && getBridge().getWebView()!=null) getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('shivamWakeWord'))", null); }, 1100);
     }
 
     private void requestShivamPermissions() {
