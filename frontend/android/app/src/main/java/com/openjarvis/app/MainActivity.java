@@ -25,7 +25,18 @@ public class MainActivity extends BridgeActivity {
     private void dispatchWakeIntent(Intent intent) {
         if (intent == null || !"com.openjarvis.app.SHIVAM_WAKE".equals(intent.getAction())) return;
         intent.setAction(Intent.ACTION_MAIN);
-        new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getBridge()!=null && getBridge().getWebView()!=null) getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('shivamWakeWord'))", null); }, 1100);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getBridge()!=null && getBridge().getWebView()!=null) getBridge().getWebView().evaluateJavascript("localStorage.setItem('shivam-wake-pending','1'); window.dispatchEvent(new Event('shivamWakeWord'))", null); }, 1100);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == SHIVAM_PERMISSION_REQUEST
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            Intent service = new Intent(this, ShivamWakeWordService.class);
+            service.setAction(ShivamWakeWordService.ACTION_START);
+            androidx.core.content.ContextCompat.startForegroundService(this, service);
+        }
     }
 
     private void requestShivamPermissions() {
