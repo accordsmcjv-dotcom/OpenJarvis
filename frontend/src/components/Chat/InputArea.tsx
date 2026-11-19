@@ -187,6 +187,10 @@ export function InputArea() {
       } else { void capture(); }
     };
     window.addEventListener('shivamWakeWord', handleWake);
+    if (localStorage.getItem('shivam-wake-pending') === '1') {
+      localStorage.removeItem('shivam-wake-pending');
+      window.setTimeout(() => { void handleWake(); }, 500);
+    }
     if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
     else void ShivamWakeWord.stopListening().catch(() => {});
     return () => {
