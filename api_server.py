@@ -1952,8 +1952,6 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     elif tool_name == "search_notes":
                         result = search_notes(arguments["query"])
                     elif tool_name == "delete_note":
-                                    action = create_tool_approval("delete_note", arguments)
-                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                         result = delete_note(arguments["note_id"])
                     else:
                         result = execute_tool(tool_name, arguments)
@@ -2587,15 +2585,15 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "save_memory_item":
                                     action = create_tool_approval("save_memory_item", arguments)
                                     result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
-                                    result = save_memory_item(arguments["key"], arguments["value"], arguments.get("category", "auto"))
+
                                 elif tool_name == "update_memory_item":
                                     action = create_tool_approval("update_memory_item", arguments)
                                     result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
-                                    result = update_memory_item(arguments["key"], arguments["value"])
+
                                 elif tool_name == "forget_memory_item":
                                     action = create_tool_approval("forget_memory_item", arguments)
                                     result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
-                                    result = forget_memory_item(arguments["key"])
+
                                 elif tool_name == "memory_dashboard":
                                     result = memory_dashboard()
                                 elif tool_name == "detect_memory_conflicts":
@@ -2611,13 +2609,13 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "add_note":
                                     action = create_tool_approval("add_note", arguments)
                                     result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
-                                    result = add_note(arguments["text"], arguments.get("title", ""))
+
                                 elif tool_name == "list_notes":
                                     result = list_notes()
                                 elif tool_name == "search_notes":
                                     result = search_notes(arguments["query"])
                                 elif tool_name == "delete_note":
-                                    result = delete_note(arguments["note_id"])
+
                                 elif tool_name in ("get_current_time", "get_system_info", "get_available_tools"):
                                     result = execute_tool(tool_name, arguments)
                                 else:
