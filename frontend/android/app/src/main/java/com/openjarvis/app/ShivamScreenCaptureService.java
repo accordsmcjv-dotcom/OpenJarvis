@@ -149,7 +149,7 @@ public class ShivamScreenCaptureService extends Service {
     private String formatScreenLayout(Text result, int width, int height) {
         if (result == null || result.getText().trim().isEmpty()) return "";
         StringBuilder out = new StringBuilder();
-        out.append("स्क्रीनवरील मजकूर व मांडणी:\\n");
+        out.append("स्क्रीनवरील मजकूर व मांडणी:\n");
         int count = 0;
         for (Text.TextBlock block : result.getTextBlocks()) {
             for (Text.Line line : block.getLines()) {
@@ -166,9 +166,9 @@ public class ShivamScreenCaptureService extends Service {
                     float y = Math.max(0f, Math.min(100f, centerY * 100f / Math.max(1, height)));
                     out.append("• [").append(region).append("; x=")
                             .append(Math.round(x)).append("%, y=").append(Math.round(y))
-                            .append("%] ").append(value).append("\\n");
+                            .append("%] ").append(value).append("\n");
                 } else {
-                    out.append("• [").append(region).append("] ").append(value).append("\\n");
+                    out.append("• [").append(region).append("] ").append(value).append("\n");
                 }
             }
             if (count >= 80) break;
