@@ -13,6 +13,8 @@ export function useSpeech() {
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef('');
   const recognitionErrorRef = useRef<string | null>(null);
+  const recognitionEndedRef = useRef(false);
+  const recognitionStopRequestedRef = useRef(false);
 
   // Prefer Android/WebView native Speech Recognition for Marathi.
   // Keep the existing backend recorder as a fallback on browsers without it.
@@ -31,6 +33,8 @@ export function useSpeech() {
     setError(null);
     transcriptRef.current = '';
     recognitionErrorRef.current = null;
+    recognitionEndedRef.current = false;
+    recognitionStopRequestedRef.current = false;
 
     const NativeRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (NativeRecognition) {
@@ -49,6 +53,10 @@ export function useSpeech() {
         };
         recognition.onerror = (event: any) => {
           recognitionErrorRef.current = event.error || 'Marathi speech recognition failed';
+        };
+        recognition.onend = () => {
+          recognitionEndedRef.current = true;
+          if (!recognitionStopRequestedRef.current) setState('idle');
         };
         recognitionRef.current = recognition;
         recognition.start();
@@ -92,15 +100,24 @@ export function useSpeech() {
     const nativeRecognition = recognitionRef.current;
     if (nativeRecognition) {
       setState('transcribing');
+      recognitionStopRequestedRef.current = true;
       return new Promise((resolve, reject) => {
+        let settled = false;
         const finish = () => {
+          if (settled) return;
+          settled = true;
           const text = transcriptRef.current.trim();
           const error = recognitionErrorRef.current;
           recognitionRef.current = null;
+          recognitionStopRequestedRef.current = false;
           setState('idle');
           if (text) resolve(text);
           else reject(new Error(error ? `Speech recognition: ${error}` : 'आवाज समजला नाही. पुन्हा प्रयत्न करा.'));
         };
+        if (recognitionEndedRef.current) {
+          finish();
+          return;
+        }
         nativeRecognition.onend = finish;
         try { nativeRecognition.stop(); } catch { finish(); }
       });
