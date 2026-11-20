@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
         dispatchWakeIntent(launchIntent);
         requestShivamPermissions();
         if (!launchedByWakeWord
+                && isWakeWordEnabled()
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startShivamWakeWordService();
         }
@@ -49,9 +50,15 @@ public class MainActivity extends BridgeActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == SHIVAM_PERMISSION_REQUEST
+                && isWakeWordEnabled()
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startShivamWakeWordService();
         }
+    }
+
+    private boolean isWakeWordEnabled() {
+        return getSharedPreferences("shivam_wake_word", MODE_PRIVATE)
+                .getBoolean("enabled", false);
     }
 
     private void startShivamWakeWordService() {
