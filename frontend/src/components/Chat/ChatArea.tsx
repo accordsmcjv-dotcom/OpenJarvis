@@ -202,10 +202,14 @@ export function ChatArea() {
       .catch(() => undefined);
     void ShivamDevice.addListener('notificationReceived', (event) => {
       if (!active) return;
+      const packageName = (event.packageName || '').toLowerCase();
+      if (/(bank|banking|wallet|paytm|phonepe|gpay|authenticator|password|credential)/i.test(packageName)) return;
       const title = (event.title || '').trim();
       const body = (event.text || '').trim();
       const message = [title, body].filter(Boolean).join(' — ');
       if (!message) return;
+      if (/(otp|one[- ]time|verification code|password|पासवर्ड|पिन कोड|pin code|transaction)/i.test(message)) return;
+      if (/\b\d{4,8}\b/.test(message) && /(code|verify|verification|otp)/i.test(message)) return;
       setLastSmartNotification(message);
       void useTtsStore.getState().speak(`notification-${Date.now()}`, `नवीन सूचना. ${message}`);
     }).then((handle) => { listenerHandle = handle; })
