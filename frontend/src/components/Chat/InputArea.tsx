@@ -156,6 +156,7 @@ export function InputArea() {
     let captureStarted = false;
     const handleWake = async () => {
       if (!mounted) return;
+      localStorage.removeItem('shivam-wake-pending');
       toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
       const capture = async () => {
         if (!mounted || captureStarted) return;
