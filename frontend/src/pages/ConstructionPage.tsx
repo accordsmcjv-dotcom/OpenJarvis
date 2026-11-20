@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Building2, CalendarDays, IndianRupee, MapPin, Plus, Search, Trash2, X } from 'lucide-react';
 
 type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'Completed';
@@ -59,7 +59,7 @@ export function ConstructionPage() {
   const totalValue = projects.reduce((sum, project) => sum + project.contractAmount, 0);
   const activeCount = projects.filter((project) => project.status === 'In Progress').length;
 
-  const addProject = (event: React.FormEvent<HTMLFormElement>) => {
+  const addProject = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.name.trim() || !form.client.trim()) {
       setError('प्रोजेक्टचे नाव आणि ग्राहकाचे नाव आवश्यक आहे.');
