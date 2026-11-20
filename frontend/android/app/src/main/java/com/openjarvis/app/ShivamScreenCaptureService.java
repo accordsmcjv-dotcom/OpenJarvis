@@ -117,7 +117,7 @@ public class ShivamScreenCaptureService extends Service {
                         completed[0]++;
                         if (completed[0] == 2) {
                             if (!finished) {
-                                String combined = (formatScreenLayout(devanagariText[0], bitmap.getWidth(), bitmap.getHeight()) + "\n" + formatScreenLayout(latinText[0], bitmap.getWidth(), bitmap.getHeight())).trim();
+                                String combined = (devanagariText[0] + "\n" + latinText[0]).trim();
                                 finish(anySuccess[0], combined.isEmpty() ? "स्क्रीनवर वाचता येण्याजोगा मजकूर आढळला नाही." : combined);
                             }
                             if (!bitmap.isRecycled()) bitmap.recycle();
