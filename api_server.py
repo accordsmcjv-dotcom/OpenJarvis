@@ -7,6 +7,7 @@ import math
 import ast
 import asyncio
 import time
+import threading
 import tempfile
 import httpx
 from contextlib import contextmanager
@@ -24,6 +25,7 @@ HISTORY_FILE = os.path.join(BASE_DIR, "chat_history.json")
 JARVIS_FILE = os.path.join(BASE_DIR, "jarvis.py")
 
 APPROVALS_FILE = os.path.join(BASE_DIR, "pending_approvals.json")
+APPROVAL_LOCK = threading.Lock()
 MODELS_CACHE_FILE = os.path.join(BASE_DIR, "models_cache.json")
 NOTES_FILE = os.path.join(BASE_DIR, "notes.json")
 TOOL_CREDENTIALS_FILE = os.path.join(BASE_DIR, "tool_credentials.json")
@@ -1834,15 +1836,15 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
 
             action_id, decision = match.groups()
-            approvals = load_approvals()
-            action = next(
-                (a for a in approvals if a.get("id") == action_id),
-                None
-            )
-
-            if not action or action.get("status") != "pending":
-                self.send_json(404, {"error": "Pending approval सापडली नाही"})
-                return
+            # Atomically claim the approval so duplicate requests cannot execute it twice.
+            with APPROVAL_LOCK:
+                approvals = load_approvals()
+                action = next((a for a in approvals if a.get("id") == action_id), None)
+                if not action or action.get("status") != "pending":
+                    self.send_json(404, {"error": "Pending approval not found or already used"})
+                    return
+                action["status"] = "processing"
+                save_approvals(approvals)
 
             try:
                 expires = datetime.datetime.fromisoformat(
@@ -2591,9 +2593,9 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 if arguments is None or argument_error:
                                     result = {"error": argument_error or "Tool arguments अवैध आहेत."}
                                 elif tool_name == "web_search":
-                                    result = tavily_web_search(
-                                        arguments["query"],
-                                        arguments.get("max_results", 5)
+                                    result = retry_read_operation(
+                                        lambda: tavily_web_search(arguments["query"], arguments.get("max_results", 5)),
+                                        "INITIAL_WEB_SEARCH"
                                     )
                                 elif tool_name == "smart_calculate":
                                     result = {
@@ -2605,7 +2607,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                         arguments["value"], arguments["from_unit"], arguments["to_unit"]
                                     )
                                 elif tool_name == "get_weather":
-                                    result = get_badnera_weather(arguments)
+                                    result = retry_read_operation(
+                                        lambda: get_badnera_weather(arguments),
+                                        "INITIAL_WEATHER"
+                                    )
                                 elif tool_name == "open_android_app":
                                     app_name = arguments["app_name"].strip().lower()
                                     action = create_approval(app_name)
