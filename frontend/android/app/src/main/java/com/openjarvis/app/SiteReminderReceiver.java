@@ -21,6 +21,12 @@ public class SiteReminderReceiver extends BroadcastReceiver {
         String id = intent.getStringExtra("id");
         String title = intent.getStringExtra("title");
         String site = intent.getStringExtra("site");
+        // This is a one-time reminder: remove its saved boot-reschedule entry
+        // as soon as it fires, so it cannot unexpectedly repeat after reboot.
+        if (id != null && !id.trim().isEmpty()) {
+            context.getSharedPreferences("shivam_site_reminders", Context.MODE_PRIVATE)
+                .edit().remove("reminder_" + id).apply();
+        }
         if (title == null || title.trim().isEmpty()) return;
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
