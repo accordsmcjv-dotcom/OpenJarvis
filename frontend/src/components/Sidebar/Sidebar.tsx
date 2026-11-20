@@ -21,6 +21,7 @@ import {
   Image,
   CalendarDays,
   Calculator,
+  Landmark,
 } from 'lucide-react';
 import { ConversationList } from './ConversationList';
 import { useAppStore } from '../../lib/store';
@@ -62,6 +63,7 @@ export function Sidebar() {
     { path: '/notes', icon: StickyNote, label: 'Notes' },
     { path: '/photo-editor', icon: Image, label: 'Photo Studio' },
     { path: '/smart-converter', icon: Calculator, label: 'Smart Converter' },
+    { path: '/government-schemes', icon: Landmark, label: 'Government Schemes' },
     { path: '/site-reminders', icon: CalendarDays, label: 'Site Reminder' },
     { path: '/data-sources', icon: Database, label: 'Data Sources' },
     { path: '/agents', icon: Bot, label: 'Agents' },
