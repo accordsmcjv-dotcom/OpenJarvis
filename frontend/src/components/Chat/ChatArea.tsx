@@ -18,6 +18,7 @@ const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
 interface ShivamDevicePlugin {
   getNotificationAccessStatus(): Promise<{ granted: boolean }>;
+  setNotificationReadingEnabled(options: { enabled: boolean }): Promise<{ enabled: boolean }>;
   getWatchmanStatus(): Promise<{ enabled: boolean }>;
   startWatchman(): Promise<{ started: boolean }>;
   stopWatchman(): Promise<{ stopping: boolean }>;
@@ -248,6 +249,11 @@ export function ChatArea() {
       setWatchmanBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void ShivamDevice.setNotificationReadingEnabled({ enabled: notificationReadingEnabled }).catch(() => undefined);
+  }, [notificationReadingEnabled]);
 
   const enableNotificationAccess = async () => {
     try {
