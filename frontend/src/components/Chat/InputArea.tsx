@@ -384,7 +384,7 @@ export function InputArea() {
     };
 
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
-    const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|फोनची बॅटरी|बॅटरी किती|battery किती|battery status|फोनची storage|स्टोरेज किती|storage किती|ram किती|रॅम किती|wifi status|वायफायची स्थिती|हेडफोन जोडले|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status|phone chi sthiti|phone chi mahiti|phone status sang)/.test(normalized);
+    const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|फोनची बॅटरी|बॅटरी किती|battery किती|battery kiti|battery status|फोनची storage|स्टोरेज किती|storage किती|storage kiti|ram किती|रॅम किती|ram kiti|wifi status|wifi chi sthiti|वायफायची स्थिती|हेडफोन जोडले|headphone jodale|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status|phone chi sthiti|phone chi mahiti|phone baddal sang|phone status sang)/.test(normalized);
     if (deviceStatusIntent && Capacitor.isNativePlatform()) {
       try {
         const info = await ShivamNavigation.getTelemetry();
@@ -399,7 +399,7 @@ export function InputArea() {
           const dnd: Record<string, string> = { OFF: 'बंद', TOTAL_SILENCE: 'पूर्ण शांतता', ALARMS_ONLY: 'फक्त अलार्म', PRIORITY_ONLY: 'प्राधान्य सूचना' };
           parts.push(`फोनचा आवाज ${ring[info.ringerMode ?? ''] ?? 'माहिती उपलब्ध नाही'} मध्ये आहे. डू नॉट डिस्टर्ब ${dnd[info.dndStatus ?? ''] ?? 'स्थिती उपलब्ध नाही'}.`);
         }
-        const fullDeviceStatus = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|device status|phone status|phone chi sthiti|phone chi mahiti|phone status sang)/.test(normalized);
+        const fullDeviceStatus = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|device status|phone status|phone chi sthiti|phone chi mahiti|phone baddal sang|phone status sang)/.test(normalized);
         if (fullDeviceStatus || /(लॉक|screen|स्क्रीन)/.test(normalized)) {
           if (info.deviceModel) parts.push(`डिव्हाइस ${info.deviceModel}, Android ${info.androidVersion ?? 'आवृत्ती अज्ञात'}.`);
           if (typeof info.deviceLocked === 'boolean') parts.push(info.deviceLocked ? 'फोन लॉक आहे.' : 'फोन अनलॉक आहे.');
