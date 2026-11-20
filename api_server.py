@@ -1952,6 +1952,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     return
                 raw = self.rfile.read(length)
                 with zipfile.ZipFile(io.BytesIO(raw), "r") as archive:
+                    if sum(item.file_size for item in archive.infolist()) > 50 * 1024 * 1024:
+                        raise ValueError("उघडल्यानंतर फाइलचा आकार 50 MB पेक्षा जास्त आहे.")
                     if extension == ".docx":
                         root = ET.fromstring(archive.read("word/document.xml"))
                         ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
@@ -1962,13 +1964,13 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 if node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t":
                                     parts.append(node.text or "")
                                 elif node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tab":
-                                    parts.append("\\t")
+                                    parts.append("\t")
                                 elif node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br":
-                                    parts.append("\\n")
+                                    parts.append("\n")
                             line = "".join(parts)
                             if line:
                                 paragraphs.append(line)
-                        extracted = "\\n".join(paragraphs)
+                        extracted = "\n".join(paragraphs)
                         output_name = os.path.splitext(os.path.basename(filename))[0] + ".txt"
                         output_format = "text"
                     else:
