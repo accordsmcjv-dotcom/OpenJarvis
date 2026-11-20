@@ -1,6 +1,7 @@
 package com.openjarvis.app;
 
 import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -19,6 +20,52 @@ import java.io.File;
 
 @CapacitorPlugin(name = "ShivamDevice")
 public class ShivamDevicePlugin extends Plugin {
+    private BroadcastReceiver chargingReceiver;
+    private boolean chargingMonitorRegistered = false;
+
+    @PluginMethod
+    public void startChargingMonitor(PluginCall call) {
+        try {
+            if (!chargingMonitorRegistered) {
+                chargingReceiver = new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        String action = intent.getAction();
+                        boolean connected = Intent.ACTION_POWER_CONNECTED.equals(action);
+                        JSObject event = new JSObject();
+                        event.put("charging", connected);
+                        notifyListeners("chargingChanged", event);
+                    }
+                };
+                IntentFilter filter = new IntentFilter();
+                filter.addAction(Intent.ACTION_POWER_CONNECTED);
+                filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    getContext().registerReceiver(chargingReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                } else {
+                    getContext().registerReceiver(chargingReceiver, filter);
+                }
+                chargingMonitorRegistered = true;
+            }
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("चार्जरची स्थिती पाहता आली नाही.", error);
+        }
+    }
+
+    @PluginMethod
+    public void stopChargingMonitor(PluginCall call) {
+        try {
+            if (chargingMonitorRegistered && chargingReceiver != null) {
+                getContext().unregisterReceiver(chargingReceiver);
+                chargingReceiver = null;
+                chargingMonitorRegistered = false;
+            }
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("चार्जर मॉनिटर बंद करता आला नाही.", error);
+        }
+    }
     @PluginMethod
     public void getTelemetry(PluginCall call) {
         try {
