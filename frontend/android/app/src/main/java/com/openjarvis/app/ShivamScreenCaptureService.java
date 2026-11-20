@@ -117,7 +117,7 @@ public class ShivamScreenCaptureService extends Service {
                         completed[0]++;
                         if (completed[0] == 2) {
                             if (!finished) {
-                                String combined = (devanagariText[0] + "\n" + latinText[0]).trim();
+                                String combined = (formatScreenLayout(devanagariText[0], bitmap.getWidth(), bitmap.getHeight()) + "\n" + formatScreenLayout(latinText[0], bitmap.getWidth(), bitmap.getHeight())).trim();
                                 finish(anySuccess[0], combined.isEmpty() ? "स्क्रीनवर वाचता येण्याजोगा मजकूर आढळला नाही." : combined);
                             }
                             if (!bitmap.isRecycled()) bitmap.recycle();
@@ -144,6 +144,25 @@ public class ShivamScreenCaptureService extends Service {
             finish(false, "Screen Understanding सुरू करता आले नाही: " + e.getMessage());
         }
         return START_NOT_STICKY;
+    }
+
+    private String formatScreenLayout(String rawText, int width, int height) {
+        if (rawText == null || rawText.trim().isEmpty()) return "";
+        // Preserve the OCR text and add approximate screen regions so SHIVAM can
+        // distinguish headings, central content and bottom navigation/actions.
+        String[] lines = rawText.split("\\n");
+        StringBuilder out = new StringBuilder();
+        out.append("स्क्रीनवरील मजकूर (अंदाजे स्थान):\\n");
+        int count = 0;
+        for (String line : lines) {
+            String value = line.trim();
+            if (value.isEmpty()) continue;
+            if (count >= 80) break;
+            String region = count == 0 ? "वरचा भाग" : "मधला/खालचा भाग";
+            out.append("• [").append(region).append("] ").append(value).append("\\n");
+            count++;
+        }
+        return out.toString().trim();
     }
 
     private Bitmap imageToBitmap(Image image) {
