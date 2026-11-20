@@ -146,9 +146,6 @@ export function InputArea() {
   useEffect(() => {
     if (prevModelRef.current !== selectedModel && streamState.isStreaming) {
       abortRef.current?.abort();
-      if (appState.settings.voiceOutputEnabled && appState.settings.voiceAutoplay && accumulatedContent && !controller.signal.aborted) {
-        speakShivamResponse(accumulatedContent);
-      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -643,6 +640,9 @@ export function InputArea() {
         // Not a digest response or server unavailable — skip
       }
 
+      if (appState.settings.voiceOutputEnabled && appState.settings.voiceAutoplay && accumulatedContent && !controller.signal.aborted) {
+        speakShivamResponse(accumulatedContent);
+      }
       updateLastAssistant(
         convId,
         accumulatedContent,
