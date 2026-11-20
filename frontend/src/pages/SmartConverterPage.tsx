@@ -85,7 +85,8 @@ export function SmartConverterPage() {
       setFileError('सध्या फोटो (JPG, PNG, WebP) आणि मजकूर/CSV फाइल्स इनपुट म्हणून समर्थित आहेत. PDF, DOCX आणि XLSX इनपुट अद्याप समर्थित नाहीत.');
       return;
     }
-    if (selected.size > 20 * 1024 * 1024) { setFileError('फाइल 20 MB पेक्षा लहान निवडा.'); return; }
+    if (isImage && selected.size > 20 * 1024 * 1024) { setFileError('फोटो 20 MB पेक्षा लहान निवडा.'); return; }
+    if (isText && selected.size > 100 * 1024) { setFileError('मजकूर/CSV फाइल 100 KB पेक्षा लहान निवडा.'); return; }
     if (isText) {
       const reader = new FileReader();
       reader.onload = () => setTextPreview(String(reader.result || ''));
