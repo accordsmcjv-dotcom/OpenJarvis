@@ -116,7 +116,9 @@ public class ShivamWakeWordService extends Service {
 
         destroyRecognizer();
         try {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+            recognizer = useOnDeviceRecognizer
+                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+                    : SpeechRecognizer.createSpeechRecognizer(this);
             recognizer.setRecognitionListener(new RecognitionListener() {
                 @Override public void onReadyForSpeech(android.os.Bundle params) {}
                 @Override public void onBeginningOfSpeech() {}
