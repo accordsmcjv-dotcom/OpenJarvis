@@ -338,8 +338,8 @@ export function InputArea() {
     const content = (voiceCommand ?? input).trim();
     if (!content || streamState.isStreaming) return;
 
-    const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
-    const affirmative = /^(हो|होय|कर|करा|लाव|लावा|yes|yeah|ok|okay|haan|ha|kar|kara)(\s+(कर|करा|लाव|लावा))?$/.test(normalized);
+        .replace(/[ ]+/g, ' ').trim();
+    const affirmative = /^(हो|होय|कर|करा|लाव|लावा|पाठव|पाठवा|send|yes|yeah|ok|okay|haan|ha|kar|kara|bhej|bhejo)(\s+(कर|करा|लाव|लावा|पाठव|पाठवा|send))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
     const spokenNumber = digitText.replace(/[^0-9]/g, '');
@@ -511,8 +511,8 @@ export function InputArea() {
       }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
-        .replace(/(^|\s)(ला|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\s|$)/g, ' ').replace(/ला$/g, '')
-        .replace(/\s+/g, ' ').trim();
+        .replace(/(^|[ ])(ला|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=[ ]|$)/g, ' ').replace(/ला$/g, '')
+        .replace(/[ ]+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
         speakCallReply(`शिवम विचारतोय, कोणत्या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? नंबर सांगा.`);
@@ -549,7 +549,7 @@ export function InputArea() {
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|त्याला|तिला|याला|हिला|त्यांना|यांना|फोन|कॉल|call|phone|लाव|लावा|कर|करा|lav|kara|kar|please|now)/g, ' ')
         .replace(/(^|\s)(ला|la|या|नंबरवर|नंबर|number|var)(?=\s|$)/g, ' ')
-        .replace(/\s+/g, ' ').trim();
+        .replace(/[ ]+/g, ' ').trim();
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
         setPendingCall({ stage: 'number', contacts: [] });
