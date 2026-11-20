@@ -15,6 +15,7 @@ export function PhotoEditorPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [rotation, setRotation] = useState(0);
   const [flip, setFlip] = useState(false);
+  const [flipVertical, setFlipVertical] = useState(false);
   const [cropRatio, setCropRatio] = useState<number | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid' | 'cool' | 'vintage' | 'fade' | 'dramatic'>('none');
@@ -45,7 +46,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize, vignette, blur]);
+  useEffect(() => { drawImage(); }, [rotation, flip, flipVertical, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize, vignette, blur]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -88,7 +89,7 @@ export function PhotoEditorPage() {
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale(flip ? -1 : 1, 1);
+    ctx.scale(flip ? -1 : 1, flipVertical ? -1 : 1);
     ctx.drawImage(image, sx / scale, sy / scale, sw / scale, sh / scale, -sw / 2, -sh / 2, sw, sh);
     ctx.restore();
     if (vignette > 0) {
@@ -176,6 +177,7 @@ export function PhotoEditorPage() {
     setFileName(file.name.replace(/\.[^.]+$/, '') || 'SHIVAM-Edited');
     setRotation(0);
     setFlip(false);
+    setFlipVertical(false);
     setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
@@ -273,7 +275,8 @@ export function PhotoEditorPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setRotation((v) => (v + 270) % 360)}><RotateCcw size={16} /> डावीकडे</button>
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setRotation((v) => (v + 90) % 360)}><RotateCw size={16} /> उजवीकडे</button>
-                <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setFlip((v) => !v)}><FlipHorizontal size={16} /> Flip</button>
+                <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setFlip((v) => !v)}><FlipHorizontal size={16} /> आडवे Flip</button>
+                <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setFlipVertical((v) => !v)}>उभे Flip</button>
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setCropRatio((v) => v === 1 ? null : 1)}><Crop size={16} /> 1:1 crop</button>
               </div>
               <div className="grid grid-cols-3 gap-2">
