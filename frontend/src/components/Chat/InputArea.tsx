@@ -17,6 +17,8 @@ import { useSpeech } from '../../hooks/useSpeech';
 
 interface ShivamNavigationApi {
   openNavigation(options: { destination: string; mode: 'driving' | 'bicycling' | 'walking' }): Promise<{ opened: boolean; travelMode: string }>;
+  startWatchman(): Promise<{ started: boolean }>;
+  stopWatchman(): Promise<{ stopping: boolean }>;
 }
 const ShivamNavigation = registerPlugin<ShivamNavigationApi>('ShivamDevice');
 import { registerPlugin } from '@capacitor/core';
@@ -548,6 +550,25 @@ export function InputArea() {
         }
         return;
       }
+    }
+
+    const watchmanStartIntent = /(smart watchman|स्मार्ट वॉचमन|वॉचमन|watchman|निगराणी|फोनवर लक्ष ठेव|फोनची काळजी घे)/.test(normalized)
+      && /(सुरू|चालू|start|on|लक्ष ठेव|कर|करा|सुरु|suru|chalu)/.test(normalized);
+    const watchmanStopIntent = /(smart watchman|स्मार्ट वॉचमन|वॉचमन|watchman|निगराणी)/.test(normalized)
+      && /(बंद|थांब|stop|off|band|thamb)/.test(normalized);
+    if (watchmanStartIntent || watchmanStopIntent) {
+      try {
+        if (watchmanStopIntent) {
+          await ShivamNavigation.stopWatchman();
+          speakCallReply('Smart Watchman बंद करण्याची विनंती केली आहे.');
+        } else {
+          await ShivamNavigation.startWatchman();
+          speakCallReply('Smart Watchman सुरू केला आहे. फोनची बॅटरी, तापमान, स्टोरेज आणि इंटरनेटची स्थिती पार्श्वभूमीत पाहत राहीन. सूचना दिसण्यासाठी Notification परवानगी सुरू ठेवा.');
+        }
+      } catch (error) {
+        speakCallReply(error instanceof Error ? error.message : 'Smart Watchman सुरू किंवा बंद करता आला नाही.');
+      }
+      return;
     }
 
     const navigationIntent = /(कुठे जाय|कसा जाय|कशी जाय|कसे जाय|कसा जाऊ|कशी जाऊ|किती दूर|किती अंतर|किती वेळ|रस्ता दाखव|मार्ग दाखव|नेव्हिगेशन|navigation|navigate|directions|route|location|लोकेशन|जायचं आहे|जायचे आहे|ला जायचं|ला जायचे|रस्ता सांग|दिशा सांग|kuthe jay|kasa jay|kashi jay|kase jay|kasa jau|kiti dur|kiti antar|kiti vel|rasta dakhav|marg dakhav|kuthe jaycha|kasa jaycha|kashi jaychi|jaycha aahe|jayche aahe|location sang)/.test(normalized)
