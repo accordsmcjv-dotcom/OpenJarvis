@@ -511,8 +511,8 @@ export function InputArea() {
       }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
-        .replace(/(^|\\s)(ला|ला$|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\s|$)/g, ' ')
-        .replace(/\\s+/g, ' ').trim();
+        .replace(/(^|\s)(ला|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\s|$)/g, ' ').replace(/ला$/g, '')
+        .replace(/\s+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
         speakCallReply(`शिवम विचारतोय, कोणत्या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? नंबर सांगा.`);
