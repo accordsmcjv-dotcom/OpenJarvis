@@ -40,6 +40,55 @@ export function ChatArea() {
     window.addEventListener('shivamWakeStatus', handleWakeStatus);
     return () => window.removeEventListener('shivamWakeStatus', handleWakeStatus);
   }, []);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [networkType, setNetworkType] = useState('—');
+  const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const ttsPlaybackState = useTtsStore((s) => s.state);
+
+  useEffect(() => {
+    type BatteryLike = EventTarget & { level: number; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
+    type ConnectionLike = EventTarget & { effectiveType?: string; type?: string };
+    const nav = navigator as Navigator & {
+      getBattery?: () => Promise<BatteryLike>;
+      connection?: ConnectionLike;
+      mozConnection?: ConnectionLike;
+      webkitConnection?: ConnectionLike;
+    };
+    let battery: BatteryLike | null = null;
+    let active = true;
+    const updateBattery = () => {
+      if (battery) setBatteryLevel(Math.round(battery.level * 100));
+    };
+    const updateNetwork = () => {
+      setNetworkOnline(navigator.onLine);
+      const connection = nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+      setNetworkType(connection?.effectiveType ?? connection?.type ?? (navigator.onLine ? 'CONNECTED' : 'OFFLINE'));
+    };
+    const updateClock = () => setHudClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const connection = nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+    window.addEventListener('online', updateNetwork);
+    window.addEventListener('offline', updateNetwork);
+    connection?.addEventListener('change', updateNetwork);
+    updateNetwork();
+    updateClock();
+    const clockTimer = window.setInterval(updateClock, 30_000);
+    nav.getBattery?.().then((value) => {
+      if (!active) return;
+      battery = value;
+      updateBattery();
+      battery.addEventListener('levelchange', updateBattery);
+    }).catch(() => setBatteryLevel(null));
+    return () => {
+      active = false;
+      window.clearInterval(clockTimer);
+      window.removeEventListener('online', updateNetwork);
+      window.removeEventListener('offline', updateNetwork);
+      connection?.removeEventListener('change', updateNetwork);
+      battery?.removeEventListener('levelchange', updateBattery);
+    };
+  }, []);
+
   const reactorState = isCurrentChatStreaming ? 'executing'
     : ttsPlaybackState === 'speaking' ? 'speaking'
     : wakeStatus === 'capturing' || wakeStatus === 'listening' ? 'listening'
@@ -52,7 +101,6 @@ export function ChatArea() {
   // Autoplay: speak a reply once it is finished, never while it streams -- a
   // partial sentence would be synthesized and then cut off by the next chunk.
   // autoSpokenId fences the message so re-renders cannot repeat it.
-  const ttsPlaybackState = useTtsStore((s) => s.state);
   const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
   const voiceAutoplay = useAppStore((s) => s.settings.voiceAutoplay);
   // Probe the backend as soon as voice output is switched on. Without this the
@@ -238,10 +286,12 @@ export function ChatArea() {
             <div className="shivam-subtitle">कृत्रिम बुद्धिमत्ता</div>
             <div className="shivam-voice-wave" aria-hidden="true">{Array.from({ length: 15 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 55}ms` }} />)}</div>
             <div className="shivam-ready"><span className="hud-heartbeat" /> {reactorLabel} <span>•</span> प्रणाली सज्ज</div>
-            <div className="shivam-glass-hud" aria-label="SHIVAM system status">
+            <div className="shivam-glass-hud" aria-label="SHIVAM live device telemetry">
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◈</span><span className="shivam-glass-label">CORE</span><b>ONLINE</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">VOICE</span><b>{reactorState === 'listening' ? 'ACTIVE' : 'READY'}</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⟡</span><span className="shivam-glass-label">LINK</span><b>SECURE</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">VOICE</span><b>{reactorState === 'listening' ? 'ACTIVE' : reactorState === 'speaking' ? 'SPEAK' : 'READY'}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}%`}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
             </div>
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
