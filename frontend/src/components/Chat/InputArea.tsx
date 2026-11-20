@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip, Search } from 'lucide-react';
+import { Send, Square, Paperclip, Search, Camera, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat, streamResearch } from '../../lib/sse';
@@ -107,6 +107,9 @@ function useResearchCorpusSync(enabled: boolean): {
 
 export function InputArea() {
   const [input, setInput] = useState('');
+  const [cameraPhoto, setCameraPhoto] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const previousOutfitPhotoRef = useRef<string | null>(null);
   const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'number' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<{
     channel: 'whatsapp' | 'sms';
@@ -348,6 +351,11 @@ export function InputArea() {
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|पाठव|पाठवा|send|yes|yeah|ok|okay|haan|ha|kar|kara|bhej|bhejo)(\s+(कर|करा|लाव|लावा|पाठव|पाठवा|send))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
+    if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
+      cameraInputRef.current?.click();
+      speakCallReply('कॅमेरा उघडत आहे. फोटो काढून झाल्यावर मी कपड्यांचा लूक तपासेन.');
+      return;
+    }
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
     const spokenNumber = digitText.replace(/[^0-9]/g, '');
     const isPhoneNumber = spokenNumber.length >= 7 && spokenNumber.length <= 15;
@@ -645,17 +653,29 @@ export function InputArea() {
     const userMsg: ChatMessage = {
       id: generateId(),
       role: 'user',
-      content,
+      content: cameraPhoto ? (content || 'माझ्या कपड्यांचा लूक तपासून सांगा.') : content,
       timestamp: Date.now(),
     };
     addMessage(convId, userMsg);
 
     // Build API messages before adding assistant placeholder
     const currentMessages = useAppStore.getState().messages;
-    const apiMessages = currentMessages.map((m) => ({
+    const apiMessages: Array<{ role: string; content: string | Array<Record<string, unknown>> }> = currentMessages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
+    if (cameraPhoto) {
+      const previousPhoto = previousOutfitPhotoRef.current;
+      const photoPrompt = previousPhoto
+        ? 'या दोन फोटोंमध्ये पहिला जुना लूक आणि दुसरा नवीन लूक आहे. कपडे बदलल्यानंतर नवीन लूक अधिक शोभतो का ते तुलना करून सांगा. रंगसंगती, फिटिंग, प्रसंगानुरूपता आणि एकूण दिसणे यावर प्रामाणिक पण सभ्य मराठीत मत द्या. चेहरा किंवा व्यक्तीची ओळख याबद्दल कोणताही बदल सुचवू नका.'
+        : 'या फोटोतील कपड्यांचा लूक तपासा. रंगसंगती, फिटिंग, प्रसंगानुरूपता आणि एकूण दिसणे यावर प्रामाणिक पण सभ्य मराठीत मत द्या. काय चांगले दिसते आणि काय बदलल्यास अधिक शोभेल ते सांगा. चेहरा किंवा व्यक्तीची ओळख यांचे विश्लेषण किंवा बदल करू नका.';
+      const parts: Array<Record<string, unknown>> = [{ type: 'text', text: (content || photoPrompt) + '\n\n' + photoPrompt }];
+      if (previousPhoto) parts.push({ type: 'image_url', image_url: { url: previousPhoto } });
+      parts.push({ type: 'image_url', image_url: { url: cameraPhoto } });
+      apiMessages[apiMessages.length - 1].content = parts;
+      previousOutfitPhotoRef.current = cameraPhoto;
+      setCameraPhoto(null);
+    }
 
     const assistantMsg: ChatMessage = {
       id: generateId(),
@@ -1032,6 +1052,7 @@ export function InputArea() {
     maxTokens,
     pendingCall,
     pendingMessage,
+    cameraPhoto,
   ]);
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
@@ -1077,6 +1098,37 @@ export function InputArea() {
           </div>
         )}
       </div>
+      {cameraPhoto && (
+        <div className="mb-2 flex items-center gap-3 rounded-xl p-2" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+          <img src={cameraPhoto} alt="कपड्यांचा फोटो" className="h-14 w-12 rounded-lg object-cover" />
+          <span className="flex-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो तयार आहे. SHIVAM कपड्यांचा लूक तपासेल.</span>
+          <button type="button" onClick={() => setCameraPhoto(null)} aria-label="फोटो काढून टाका" className="p-2 rounded-lg" style={{ color: 'var(--color-text-tertiary)' }}><X size={16} /></button>
+        </div>
+      )}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        aria-label="कपड्यांचा फोटो काढा"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          if (!file.type.startsWith('image/')) { toast.error('कृपया फोटो निवडा.'); return; }
+          if (file.size > 12 * 1024 * 1024) { toast.error('फोटो 12 MB पेक्षा लहान असावा.'); return; }
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === 'string') {
+              setCameraPhoto(reader.result);
+              setInput((current) => current || 'माझ्या कपड्यांचा लूक कसा दिसतो?');
+            } else toast.error('फोटो वाचता आला नाही.');
+          };
+          reader.onerror = () => toast.error('फोटो वाचता आला नाही.');
+          reader.readAsDataURL(file);
+        }}
+      />
       <div
         className="flex items-center gap-2 rounded-2xl px-4 py-3 transition-shadow"
         style={{
@@ -1107,6 +1159,17 @@ export function InputArea() {
           </button>
         ) : (
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={streamState.isStreaming || modelLoading || !selectedModel}
+              title="कपड्यांचा फोटो काढा"
+              aria-label="कपड्यांचा फोटो काढा"
+              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30"
+              style={{ color: 'var(--color-text-secondary)', background: 'var(--color-bg-tertiary)' }}
+            >
+              <Camera size={17} />
+            </button>
             <MicButton
               state={speechState}
               onClick={handleMicClick}
