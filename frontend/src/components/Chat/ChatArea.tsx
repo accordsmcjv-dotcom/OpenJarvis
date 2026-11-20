@@ -29,6 +29,24 @@ export function ChatArea() {
   const lastScrollTop = useRef(0);
   const isCurrentChatStreaming = streamState.isStreaming && streamState.conversationId === activeId;
 
+  const [wakeStatus, setWakeStatus] = useState<'listening' | 'capturing' | 'thinking' | 'off'>('off');
+  useEffect(() => {
+    const handleWakeStatus = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next === 'listening' || next === 'capturing' || next === 'thinking' || next === 'off') {
+        setWakeStatus(next);
+      }
+    };
+    window.addEventListener('shivamWakeStatus', handleWakeStatus);
+    return () => window.removeEventListener('shivamWakeStatus', handleWakeStatus);
+  }, []);
+  const reactorState = isCurrentChatStreaming ? 'executing'
+    : wakeStatus === 'capturing' || wakeStatus === 'listening' ? 'listening'
+    : wakeStatus === 'thinking' ? 'thinking' : 'idle';
+  const reactorLabel = reactorState === 'listening' ? 'ऐकत आहे'
+    : reactorState === 'thinking' ? 'विचार करत आहे'
+    : reactorState === 'executing' ? 'काम सुरू आहे' : 'तुमच्या सेवेत';
+
   // Autoplay: speak a reply once it is finished, never while it streams -- a
   // partial sentence would be synthesized and then cut off by the next chunk.
   // autoSpokenId fences the message so re-renders cannot repeat it.
@@ -185,7 +203,7 @@ export function ChatArea() {
         className="flex-1 overflow-y-auto"
       >
         {isEmpty ? (
-          <div className="shivam-home flex flex-col items-center justify-center h-full px-4">
+          <div className={`shivam-home shivam-home-${reactorState} flex flex-col items-center justify-center h-full px-4`} data-reactor-state={reactorState}>
             <div className="shivam-home-meta">
               <span className="hud-heartbeat" /> वैयक्तिक AI प्रणाली
               <span className="shivam-meta-line" />
@@ -206,7 +224,8 @@ export function ChatArea() {
             </div>
             <div className="shivam-wordmark">SHIVAM</div>
             <div className="shivam-subtitle">कृत्रिम बुद्धिमत्ता</div>
-            <div className="shivam-ready"><span className="hud-heartbeat" /> प्रणाली सुरू आहे <span>•</span> मदतीसाठी तयार</div>
+            <div className="shivam-voice-wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 85}ms` }} />)}</div>
+            <div className="shivam-ready"><span className="hud-heartbeat" /> {reactorLabel} <span>•</span> प्रणाली सज्ज</div>
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
             </h2>
