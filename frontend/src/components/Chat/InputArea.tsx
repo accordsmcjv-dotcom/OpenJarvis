@@ -351,11 +351,6 @@ export function InputArea() {
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|पाठव|पाठवा|send|yes|yeah|ok|okay|haan|ha|kar|kara|bhej|bhejo)(\s+(कर|करा|लाव|लावा|पाठव|पाठवा|send))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
-    if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
-      cameraInputRef.current?.click();
-      speakCallReply('कॅमेरा उघडत आहे. फोटो काढून झाल्यावर मी कपड्यांचा लूक तपासेन.');
-      return;
-    }
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
     const spokenNumber = digitText.replace(/[^0-9]/g, '');
     const isPhoneNumber = spokenNumber.length >= 7 && spokenNumber.length <= 15;
@@ -368,6 +363,12 @@ export function InputArea() {
       void useTtsStore.getState().speak(assistantId, reply);
       setInput('');
     };
+
+    if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
+      cameraInputRef.current?.click();
+      speakCallReply('कॅमेरा उघडत आहे. फोटो काढून झाल्यावर मी कपड्यांचा लूक तपासेन.');
+      return;
+    }
 
     if (pendingCall) {
       if (negative) {
@@ -1101,7 +1102,7 @@ export function InputArea() {
       {cameraPhoto && (
         <div className="mb-2 flex items-center gap-3 rounded-xl p-2" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
           <img src={cameraPhoto} alt="कपड्यांचा फोटो" className="h-14 w-12 rounded-lg object-cover" />
-          <span className="flex-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो तयार आहे. SHIVAM कपड्यांचा लूक तपासेल.</span>
+          <span className="flex-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो तयार आहे. फोटो समजणारे AI मॉडेल निवडलेले असावे.</span>
           <button type="button" onClick={() => setCameraPhoto(null)} aria-label="फोटो काढून टाका" className="p-2 rounded-lg" style={{ color: 'var(--color-text-tertiary)' }}><X size={16} /></button>
         </div>
       )}
@@ -1120,10 +1121,21 @@ export function InputArea() {
           if (file.size > 12 * 1024 * 1024) { toast.error('फोटो 12 MB पेक्षा लहान असावा.'); return; }
           const reader = new FileReader();
           reader.onload = () => {
-            if (typeof reader.result === 'string') {
-              setCameraPhoto(reader.result);
+            if (typeof reader.result !== 'string') { toast.error('फोटो वाचता आला नाही.'); return; }
+            const image = new Image();
+            image.onload = () => {
+              const scale = Math.min(1, 1440 / Math.max(image.width, image.height));
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(image.width * scale));
+              canvas.height = Math.max(1, Math.round(image.height * scale));
+              const context = canvas.getContext('2d');
+              if (!context) { toast.error('फोटो तयार करता आला नाही.'); return; }
+              context.drawImage(image, 0, 0, canvas.width, canvas.height);
+              setCameraPhoto(canvas.toDataURL('image/jpeg', 0.82));
               setInput((current) => current || 'माझ्या कपड्यांचा लूक कसा दिसतो?');
-            } else toast.error('फोटो वाचता आला नाही.');
+            };
+            image.onerror = () => toast.error('फोटो उघडता आला नाही.');
+            image.src = reader.result;
           };
           reader.onerror = () => toast.error('फोटो वाचता आला नाही.');
           reader.readAsDataURL(file);
