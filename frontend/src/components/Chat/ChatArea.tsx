@@ -87,6 +87,7 @@ export function ChatArea() {
   const previousRingerMode = useRef<string | null>(null);
   const previousDndStatus = useRef<string | null>(null);
   const lowStorageAlerted = useRef(false);
+  const lowRamAlerted = useRef(false);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -301,6 +302,15 @@ export function ChatArea() {
               void useTtsStore.getState().speak(`storage-low-${Date.now()}`, `फोनमधील जागा कमी उरली आहे. फक्त ${info.storageFreeGb.toFixed(1)} जीबी जागा उपलब्ध आहे.`);
             } else if (!lowStorage && info.storageFreeGb > Math.max(6, info.storageTotalGb * 0.12)) {
               lowStorageAlerted.current = false;
+            }
+          }
+          if (typeof info.memoryAvailableGb === 'number' && typeof info.memoryTotalGb === 'number' && info.memoryTotalGb > 0) {
+            const lowRam = info.memoryAvailableGb <= Math.max(0.8, info.memoryTotalGb * 0.1);
+            if (lowRam && !lowRamAlerted.current) {
+              lowRamAlerted.current = true;
+              void useTtsStore.getState().speak(`ram-low-${Date.now()}`, `फोनची RAM कमी उपलब्ध आहे. फक्त ${info.memoryAvailableGb.toFixed(1)} जीबी RAM मोकळी आहे. काही न वापरलेले अॅप बंद करा.`);
+            } else if (!lowRam && info.memoryAvailableGb > Math.max(1.0, info.memoryTotalGb * 0.15)) {
+              lowRamAlerted.current = false;
             }
           }
           if (typeof info.ringerMode === 'string') {
@@ -697,8 +707,8 @@ export function ChatArea() {
               {lastSmartNotification && <div className="shivam-glass-cell"><span className="shivam-glass-icon">✉</span><span className="shivam-glass-label">LAST NOTIFICATION</span><b>{lastSmartNotification}</b></div>}
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">HUMIDITY</span><b>{weatherHumidity === null ? "N/A" : `${weatherHumidity}%`}</b></div>
-              {deviceTelemetry?.storageFreeGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▤</span><span className="shivam-glass-label">DEVICE STORAGE · FREE</span><b>{deviceTelemetry.storageFreeGb.toFixed(1)} / {(deviceTelemetry.storageTotalGb ?? 0).toFixed(1)} GB</b></div>}
-              {deviceTelemetry?.memoryAvailableGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▦</span><span className="shivam-glass-label">AVAILABLE RAM</span><b>{deviceTelemetry.memoryAvailableGb.toFixed(1)} / {(deviceTelemetry.memoryTotalGb ?? 0).toFixed(1)} GB</b></div>}
+              {deviceTelemetry?.storageFreeGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▤</span><span className="shivam-glass-label">PHONE STORAGE · FREE</span><b>{deviceTelemetry.storageFreeGb.toFixed(1)} / {(deviceTelemetry.storageTotalGb ?? 0).toFixed(1)} GB · {deviceTelemetry.storageTotalGb ? Math.max(0, Math.min(100, Math.round((1 - deviceTelemetry.storageFreeGb / deviceTelemetry.storageTotalGb) * 100))) : 0}% वापर</b></div>}
+              {deviceTelemetry?.memoryAvailableGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▦</span><span className="shivam-glass-label">RAM · AVAILABLE</span><b>{deviceTelemetry.memoryAvailableGb.toFixed(1)} / {(deviceTelemetry.memoryTotalGb ?? 0).toFixed(1)} GB · {deviceTelemetry.memoryTotalGb ? Math.max(0, Math.min(100, Math.round((1 - deviceTelemetry.memoryAvailableGb / deviceTelemetry.memoryTotalGb) * 100))) : 0}% वापर</b></div>}
               {deviceTelemetry?.batteryTemperatureC !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">BATTERY TEMP</span><b>{deviceTelemetry.batteryTemperatureC.toFixed(1)}°C</b></div>}
               {deviceTelemetry?.thermalStatus && <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">THERMAL STATUS</span><b>{deviceTelemetry.thermalStatus}</b></div>}
               {deviceTelemetry?.ringerMode && <div className="shivam-glass-cell"><span className="shivam-glass-icon">♫</span><span className="shivam-glass-label">RINGER</span><b>{deviceTelemetry.ringerMode}</b></div>}
