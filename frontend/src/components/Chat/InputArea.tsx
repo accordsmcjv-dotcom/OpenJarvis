@@ -155,8 +155,10 @@ export function InputArea() {
     let wakeTimer: number | null = null;
     let wakeStartTimer: number | null = null;
     let captureStarted = false;
+    let wakeInProgress = false;
     const handleWake = async () => {
-      if (!mounted) return;
+      if (!mounted || wakeInProgress) return;
+      wakeInProgress = true;
       localStorage.removeItem('shivam-wake-pending');
       toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
       const capture = async () => {
@@ -172,9 +174,11 @@ export function InputArea() {
                 toast.success('तुमचा प्रश्न ऐकला आहे. पाठवण्यासाठी Send दाबा.');
               }
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
+            wakeInProgress = false;
             void ShivamWakeWord.startListening().catch(() => {});
           }, 7000);
         } catch {
+          wakeInProgress = false;
           toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.');
           void ShivamWakeWord.startListening().catch(() => {});
         }
@@ -196,7 +200,7 @@ export function InputArea() {
     if (speechEnabled) {
       // Give a cold-start wake event time to begin command capture before restarting the listener.
       wakeStartTimer = window.setTimeout(() => {
-        if (mounted && !captureStarted) void ShivamWakeWord.startListening().catch(() => {});
+        if (mounted && !captureStarted && !wakeInProgress) void ShivamWakeWord.startListening().catch(() => {});
       }, 4500);
     } else {
       void ShivamWakeWord.stopListening().catch(() => {});
