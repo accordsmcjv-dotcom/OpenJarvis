@@ -80,6 +80,33 @@ def save_approvals(data):
     save_json(APPROVALS_FILE, data)
 
 
+
+def create_tool_approval(tool_name, arguments):
+    import datetime
+    import uuid
+    allowed = {
+        "save_memory_item", "update_memory_item", "forget_memory_item",
+        "add_note", "delete_note"
+    }
+    if tool_name not in allowed or not isinstance(arguments, dict):
+        raise ValueError("या कृतीसाठी मंजुरी तयार करता येत नाही.")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    action = {
+        "id": str(uuid.uuid4()),
+        "action_type": "tool_execution",
+        "description": "SHIVAM कृती मंजुरी: " + tool_name,
+        "payload": {"tool_name": tool_name, "arguments": arguments},
+        "permission_key": "assistant.mutate_data",
+        "tier": "high",
+        "status": "pending",
+        "created_at": now.isoformat(),
+        "expires_at": (now + datetime.timedelta(minutes=5)).isoformat()
+    }
+    approvals = load_approvals()
+    approvals.append(action)
+    save_approvals(approvals)
+    return action
+
 def create_approval(app_name):
     import datetime
     import uuid
@@ -1810,6 +1837,39 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
 
             payload = action.get("payload", {})
+            if action.get("action_type") == "tool_execution":
+                allowed_mutations = {"save_memory_item", "update_memory_item", "forget_memory_item", "add_note", "delete_note"}
+                tool_name = payload.get("tool_name") if isinstance(payload, dict) else None
+                arguments = payload.get("arguments") if isinstance(payload, dict) else None
+                if tool_name not in allowed_mutations or not isinstance(arguments, dict):
+                    action["status"] = "failed"
+                    action["execution_result"] = {"error": "Invalid tool approval payload"}
+                    save_approvals(approvals)
+                    self.send_json(400, {"error": "Invalid tool approval payload"})
+                    return
+                try:
+                    if tool_name == "save_memory_item":
+                        result = save_memory_item(arguments["key"], arguments["value"], arguments.get("category", "auto"))
+                    elif tool_name == "update_memory_item":
+                        result = update_memory_item(arguments["key"], arguments["value"])
+                    elif tool_name == "forget_memory_item":
+                        result = forget_memory_item(arguments["key"])
+                    elif tool_name == "add_note":
+                        result = add_note(arguments["text"], arguments.get("title", ""))
+                    else:
+                        result = delete_note(arguments["note_id"])
+                    succeeded = isinstance(result, dict) and result.get("success") is True
+                    action["status"] = "approved" if succeeded else "failed"
+                    action["execution_result"] = result
+                    save_approvals(approvals)
+                    self.send_json(200, {"success": succeeded, "status": action["status"], "result": result})
+                except Exception:
+                    action["status"] = "failed"
+                    action["execution_result"] = {"error": "मंजूर केलेली कृती पूर्ण करता आली नाही."}
+                    save_approvals(approvals)
+                    self.send_json(500, {"error": "Approved action failed"})
+                return
+
             allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone", "maps", "calendar", "contacts", "messages", "clock", "files"}
             if (
                 not isinstance(payload, dict)
@@ -1892,6 +1952,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     elif tool_name == "search_notes":
                         result = search_notes(arguments["query"])
                     elif tool_name == "delete_note":
+                                    action = create_tool_approval("delete_note", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                         result = delete_note(arguments["note_id"])
                     else:
                         result = execute_tool(tool_name, arguments)
@@ -2523,10 +2585,16 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "search_memory":
                                     result = search_memory(arguments.get("query", ""), arguments.get("category", ""), arguments.get("limit", 10))
                                 elif tool_name == "save_memory_item":
+                                    action = create_tool_approval("save_memory_item", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                                     result = save_memory_item(arguments["key"], arguments["value"], arguments.get("category", "auto"))
                                 elif tool_name == "update_memory_item":
+                                    action = create_tool_approval("update_memory_item", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                                     result = update_memory_item(arguments["key"], arguments["value"])
                                 elif tool_name == "forget_memory_item":
+                                    action = create_tool_approval("forget_memory_item", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                                     result = forget_memory_item(arguments["key"])
                                 elif tool_name == "memory_dashboard":
                                     result = memory_dashboard()
@@ -2541,6 +2609,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "list_memory_backups":
                                     result = list_memory_backups()
                                 elif tool_name == "add_note":
+                                    action = create_tool_approval("add_note", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                                     result = add_note(arguments["text"], arguments.get("title", ""))
                                 elif tool_name == "list_notes":
                                     result = list_notes()
