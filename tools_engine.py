@@ -43,27 +43,45 @@ def open_android_app(app_name):
         "camera": ("Camera", "com.android.camera/.Camera"),
         "settings": ("Settings", "com.android.settings/.Settings")
     }
+    package_apps = {
+        "maps": ("Google Maps", ["com.google.android.apps.maps"]),
+        "calendar": ("Calendar", ["com.google.android.calendar", "com.android.calendar"]),
+        "contacts": ("Contacts", ["com.google.android.contacts", "com.android.contacts"]),
+        "messages": ("Messages", ["com.google.android.apps.messaging", "com.android.mms"]),
+        "clock": ("Clock", ["com.google.android.deskclock", "com.android.deskclock"]),
+        "files": ("Files", ["com.google.android.documentsui", "com.android.documentsui", "com.mi.android.globalFileexplorer"])
+    }
 
     key = str(app_name).strip().lower()
-
     if key == "phone":
         command = ["am", "start", "-a", "android.intent.action.DIAL", "-d", "tel:"]
         label = "Phone"
     elif key in apps:
         label, activity = apps[key]
         command = ["am", "start", "-n", activity]
+    elif key in package_apps:
+        label, packages = package_apps[key]
+        command = None
+        for package in packages:
+            probe = subprocess.run(["pm", "path", package], capture_output=True, text=True, timeout=5)
+            if probe.returncode == 0 and probe.stdout.strip():
+                command = ["monkey", "-p", package, "1"]
+                break
+        if command is None:
+            return {"success": False, "app": label, "error": "हे App या फोनवर स्थापित नाही."}
     else:
         return {"success": False, "error": "हे App परवानगी यादीत नाही."}
 
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=15)
         return {
-            "success": result.returncode == 0,
+            "success": result.returncode == 0 and "No activities found" not in result.stdout,
             "app": label,
             "message": result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
         }
     except Exception as error:
-        return {"success": False, "error": str(error)}
+        return {"success": False, "app": label, "error": str(error)}
+
 
 TOOL_REGISTRY = {
     "open_android_app": open_android_app,
