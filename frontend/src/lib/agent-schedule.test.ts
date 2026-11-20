@@ -98,7 +98,7 @@ describe('normalizeAgentSchedule', () => {
 });
 
 describe('buildAgentExecutionInstruction', () => {
-  it('preserves the user's task and adds safe multi-step execution rules', () => {
+  it("preserves the user task and adds safe multi-step execution rules", () => {
     const result = buildAgentExecutionInstruction('Research the latest Android updates.');
     expect(result).toContain('Research the latest Android updates.');
     expect(result).toContain('ordered, small steps');
