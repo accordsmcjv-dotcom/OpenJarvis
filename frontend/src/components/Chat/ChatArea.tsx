@@ -22,6 +22,7 @@ interface ShivamDevicePlugin {
     storageFreeGb?: number; storageTotalGb?: number;
     memoryAvailableGb?: number; memoryTotalGb?: number; lowMemory?: boolean;
     thermalStatus?: string; deviceModel?: string; androidVersion?: string;
+    bluetoothAudioConnected?: boolean; wiredHeadphonesConnected?: boolean; headphonesConnected?: boolean;
   }>;
 }
 const ShivamDevice = registerPlugin<ShivamDevicePlugin>('ShivamDevice');
@@ -64,8 +65,7 @@ export function ChatArea() {
   const lowBatteryAlerted = useRef(false);
   const fullBatteryAlerted = useRef(false);
   const hotBatteryAlerted = useRef(false);
-  const lowBatteryAlerted = useRef(false);
-  const fullBatteryAlerted = useRef(false);
+  const previousHeadphonesState = useRef<boolean | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -189,6 +189,16 @@ export function ChatArea() {
         const info = await ShivamDevice.getTelemetry();
         if (!cancelled) {
           setDeviceTelemetry(info);
+          if (typeof info.headphonesConnected === 'boolean') {
+            const previous = previousHeadphonesState.current;
+            if (previous !== null && previous !== info.headphonesConnected) {
+              const message = info.headphonesConnected
+                ? (info.bluetoothAudioConnected ? 'Bluetooth हेडफोन जोडले गेले आहेत.' : 'हेडफोन जोडले गेले आहेत.')
+                : 'हेडफोन डिस्कनेक्ट झाले आहेत.';
+              void useTtsStore.getState().speak(`headphones-${info.headphonesConnected ? 'connected' : 'disconnected'}-${Date.now()}`, message);
+            }
+            previousHeadphonesState.current = info.headphonesConnected;
+          }
           if (typeof info.chargerConnected === 'boolean') {
             const previous = previousChargerState.current;
             if (previous === null) {
@@ -225,21 +235,6 @@ export function ChatArea() {
             }
           }
           if (typeof info.charging === 'boolean') setBatteryCharging(info.charging);
-          if (typeof info.batteryPercent === 'number' && typeof info.charging === 'boolean') {
-            if (info.batteryPercent <= 20 && !info.charging && !lowBatteryAlerted.current) {
-              lowBatteryAlerted.current = true;
-              void useTtsStore.getState().speak(`battery-low-${Date.now()}`, `बॅटरी ${info.batteryPercent} टक्के आहे. कृपया फोन चार्ज करा.`);
-            } else if (info.batteryPercent > 25 || info.charging) {
-              lowBatteryAlerted.current = false;
-            }
-
-            if (info.batteryPercent >= 100 && info.charging && !fullBatteryAlerted.current) {
-              fullBatteryAlerted.current = true;
-              void useTtsStore.getState().speak(`battery-full-${Date.now()}`, 'बॅटरी पूर्ण चार्ज झाली आहे. चार्जर काढू शकता.');
-            } else if (info.batteryPercent < 98 || !info.charging) {
-              fullBatteryAlerted.current = false;
-            }
-          }
         }
       } catch {
         if (!cancelled) setDeviceTelemetry(null);
