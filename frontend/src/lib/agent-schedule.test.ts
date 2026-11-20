@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getAgentSchedule, normalizeAgentSchedule } from './agent-schedule';
+import { getAgentSchedule, normalizeAgentSchedule, buildAgentExecutionInstruction } from './agent-schedule';
 
 describe('getAgentSchedule', () => {
   it('reads schedule fields from the nested agent config', () => {
@@ -94,5 +94,21 @@ describe('normalizeAgentSchedule', () => {
       type: 'manual',
       value: '',
     });
+  });
+});
+
+describe('buildAgentExecutionInstruction', () => {
+  it('preserves the user's task and adds safe multi-step execution rules', () => {
+    const result = buildAgentExecutionInstruction('Research the latest Android updates.');
+    expect(result).toContain('Research the latest Android updates.');
+    expect(result).toContain('ordered, small steps');
+    expect(result).toContain('obtain explicit user approval');
+    expect(result).toContain('Verify the final result');
+    expect(result).toContain('Never invent tool results');
+  });
+
+  it('provides the workflow protocol when the user instruction is empty', () => {
+    const result = buildAgentExecutionInstruction('  ');
+    expect(result.startsWith('WORKFLOW EXECUTION PROTOCOL:')).toBe(true);
   });
 });
