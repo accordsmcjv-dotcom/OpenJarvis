@@ -29,6 +29,9 @@ public class ShivamWakeWordService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean active = false;
     private boolean launching = false;
+    // Prefer Android's on-device recognizer when the device exposes one.
+    // Some devices do not ship an offline Marathi model, so retain a fallback.
+    private boolean useOnDeviceRecognizer = false;
     private SpeechRecognizer recognizer;
 
     private final Runnable restartListening = () -> {
@@ -64,6 +67,8 @@ public class ShivamWakeWordService extends Service {
                 try {
                     startForegroundNow();
                     active = true;
+                    useOnDeviceRecognizer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                            && SpeechRecognizer.isOnDeviceRecognitionAvailable(this);
                     listen();
                 } catch (SecurityException | IllegalStateException error) {
                     active = false;
@@ -126,6 +131,8 @@ public class ShivamWakeWordService extends Service {
                 @Override
                 public void onError(int error) {
                     handler.removeCallbacks(listenTimeout);
+                    // Fall back once if the local service lacks Marathi or its model.
+                    if (useOnDeviceRecognizer) useOnDeviceRecognizer = false;
                     scheduleRestart();
                 }
 
@@ -151,6 +158,7 @@ public class ShivamWakeWordService extends Service {
             handler.removeCallbacks(listenTimeout);
             handler.postDelayed(listenTimeout, LISTEN_TIMEOUT_MS);
         } catch (Exception error) {
+            if (useOnDeviceRecognizer) useOnDeviceRecognizer = false;
             scheduleRestart();
         }
     }
