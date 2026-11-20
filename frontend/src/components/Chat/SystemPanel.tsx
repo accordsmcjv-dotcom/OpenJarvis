@@ -8,6 +8,8 @@ import {
   Cloud,
   HardDrive,
   Hash,
+  Mic,
+  MicOff,
   X,
   Trophy,
   ExternalLink,
@@ -42,6 +44,25 @@ export function SystemPanel() {
   const liveEnergy = useAppStore((s) => s.liveEnergy);
   const [energy, setEnergy] = useState<EnergyData | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryStats | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<'listening' | 'capturing' | 'thinking' | 'off'>('off');
+
+  useEffect(() => {
+    const handleVoiceStatus = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail === 'listening' || detail === 'capturing' || detail === 'thinking' || detail === 'off') {
+        setVoiceStatus(detail);
+      }
+    };
+    window.addEventListener('shivamWakeStatus', handleVoiceStatus);
+    return () => window.removeEventListener('shivamWakeStatus', handleVoiceStatus);
+  }, []);
+
+  const voiceStatusLabel = {
+    listening: '“Shivam” ऐकत आहे',
+    capturing: 'आदेश ऐकत आहे',
+    thinking: 'विचार करत आहे',
+    off: 'आवाज सेवा बंद',
+  }[voiceStatus];
 
   const fetchData = useCallback(async () => {
     try {
@@ -113,6 +134,18 @@ export function SystemPanel() {
             <MiniStat icon={Hash} label="विनंत्या" value={String(savings?.total_calls ?? telemetry?.total_requests ?? 0)} />
             <MiniStat icon={Hash} label="उत्तर टोकन्स" value={formatNumber(savings?.total_completion_tokens ?? telemetry?.total_tokens ?? 0)} />
           </div>
+        </section>
+
+        {/* Voice assistant status */}
+        <section>
+          <h4 className="text-[11px] font-medium uppercase tracking-wide mb-2" style={{ color: 'var(--color-text-tertiary)' }}>
+            आवाज सहाय्यक
+          </h4>
+          <MiniStat
+            icon={voiceStatus === 'off' ? MicOff : Mic}
+            label="SHIVAM Voice"
+            value={voiceStatusLabel}
+          />
         </section>
 
         {/* Device */}
