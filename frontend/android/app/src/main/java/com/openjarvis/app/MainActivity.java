@@ -27,6 +27,12 @@ public class MainActivity extends BridgeActivity {
 
     private void dispatchWakeIntent(Intent intent) {
         if (intent == null || !"com.openjarvis.app.SHIVAM_WAKE".equals(intent.getAction())) return;
+        // Wake the display when the wake word is detected, without bypassing the lock screen.
+        if (Build.VERSION.SDK_INT >= 27) {
+            setTurnScreenOn(true);
+        } else {
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        }
         intent.setAction(Intent.ACTION_MAIN);
         new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getBridge()!=null && getBridge().getWebView()!=null) getBridge().getWebView().evaluateJavascript("localStorage.setItem('shivam-wake-pending','1'); window.dispatchEvent(new Event('shivamWakeWord'))", null); }, 1100);
     }
