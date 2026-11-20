@@ -41,15 +41,18 @@ export function ChatArea() {
     return () => window.removeEventListener('shivamWakeStatus', handleWakeStatus);
   }, []);
   const reactorState = isCurrentChatStreaming ? 'executing'
+    : ttsPlaybackState === 'speaking' ? 'speaking'
     : wakeStatus === 'capturing' || wakeStatus === 'listening' ? 'listening'
-    : wakeStatus === 'thinking' ? 'thinking' : 'idle';
+    : wakeStatus === 'thinking' || ttsPlaybackState === 'loading' ? 'thinking' : 'idle';
   const reactorLabel = reactorState === 'listening' ? 'ऐकत आहे'
     : reactorState === 'thinking' ? 'विचार करत आहे'
+    : reactorState === 'speaking' ? 'बोलत आहे'
     : reactorState === 'executing' ? 'काम सुरू आहे' : 'तुमच्या सेवेत';
 
   // Autoplay: speak a reply once it is finished, never while it streams -- a
   // partial sentence would be synthesized and then cut off by the next chunk.
   // autoSpokenId fences the message so re-renders cannot repeat it.
+  const ttsPlaybackState = useTtsStore((s) => s.state);
   const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
   const voiceAutoplay = useAppStore((s) => s.settings.voiceAutoplay);
   // Probe the backend as soon as voice output is switched on. Without this the
@@ -217,8 +220,15 @@ export function ChatArea() {
               <div className="shivam-reactor-ring shivam-ring-inner" />
               <div className="shivam-reactor-cross shivam-cross-a" />
               <div className="shivam-reactor-cross shivam-cross-b" />
-              <div className="shivam-reactor-core">
-                <Sparkles size={34} strokeWidth={1.25} />
+              <div className="shivam-reactor-core shivam-avatar-core">
+                <div className="shivam-avatar" aria-hidden="true">
+                  <span className="shivam-avatar-brow" />
+                  <span className="shivam-avatar-eye shivam-avatar-eye-left" />
+                  <span className="shivam-avatar-eye shivam-avatar-eye-right" />
+                  <span className="shivam-avatar-nose" />
+                  <span className="shivam-avatar-mouth" />
+                  <span className="shivam-avatar-scan" />
+                </div>
               </div>
               <span className="shivam-orbit-dot shivam-dot-a" />
               <span className="shivam-orbit-dot shivam-dot-b" />
@@ -226,7 +236,7 @@ export function ChatArea() {
             </div>
             <div className="shivam-wordmark">SHIVAM</div>
             <div className="shivam-subtitle">कृत्रिम बुद्धिमत्ता</div>
-            <div className="shivam-voice-wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 85}ms` }} />)}</div>
+            <div className="shivam-voice-wave" aria-hidden="true">{Array.from({ length: 15 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 55}ms` }} />)}</div>
             <div className="shivam-ready"><span className="hud-heartbeat" /> {reactorLabel} <span>•</span> प्रणाली सज्ज</div>
             <div className="shivam-glass-hud" aria-label="SHIVAM system status">
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◈</span><span className="shivam-glass-label">CORE</span><b>ONLINE</b></div>
