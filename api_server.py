@@ -2036,13 +2036,30 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 self.send_json(500, {"error": "OPENROUTER_API_KEY सेट केलेली नाही"})
                 return
 
-            incoming = [
-                {"role": m["role"], "content": m["content"]}
-                for m in request.get("messages", [])
-                if isinstance(m, dict)
-                and m.get("role") in ("user", "assistant")
-                and isinstance(m.get("content"), str)
-            ]
+            incoming = []
+            vision_message = None
+            for item in request.get("messages", []):
+                if not isinstance(item, dict) or item.get("role") not in ("user", "assistant"):
+                    continue
+                raw_content = item.get("content")
+                if isinstance(raw_content, str):
+                    incoming.append({"role": item["role"], "content": raw_content})
+                elif item.get("role") == "user" and isinstance(raw_content, list):
+                    text_parts = []
+                    valid_parts = []
+                    for part in raw_content:
+                        if not isinstance(part, dict):
+                            continue
+                        if part.get("type") == "text" and isinstance(part.get("text"), str):
+                            text_parts.append(part["text"])
+                            valid_parts.append(part)
+                        elif part.get("type") == "image_url" and isinstance(part.get("image_url"), dict):
+                            image_url = part["image_url"].get("url")
+                            if isinstance(image_url, str) and image_url.startswith("data:image/"):
+                                valid_parts.append(part)
+                    if text_parts and any(part.get("type") == "image_url" for part in valid_parts):
+                        incoming.append({"role": "user", "content": "\\n".join(text_parts)})
+                        vision_message = {"role": "user", "content": valid_parts}
 
             if len(incoming) == 1 and incoming[0]["role"] == "user":
                 history = load_history()
@@ -2074,6 +2091,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     "content": "मागील संभाषणाचा संक्षिप्त संदर्भ:\n" + context_summary
                 })
             messages.extend(conversation)
+            if vision_message and messages and messages[-1].get("role") == "user":
+                messages[-1] = vision_message
             model_id = request.get("model") or os.getenv("JARVIS_MODEL", "openrouter/auto")
             model_id = {"anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.6", "openrouter/anthropic/claude-sonnet-4.6": "anthropic/claude-sonnet-4.6", "openrouter/deepseek/deepseek-r1": "deepseek/deepseek-r1"}.get(model_id, model_id)
 
