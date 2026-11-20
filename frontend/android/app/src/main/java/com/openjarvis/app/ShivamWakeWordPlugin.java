@@ -68,7 +68,11 @@ public class ShivamWakeWordPlugin extends Plugin {
         }
 
         getActivity().runOnUiThread(() -> {
+            PluginCall previousCall = activeCommandCall;
             destroyCommandRecognizer();
+            if (previousCall != null) {
+                previousCall.reject("नवीन आवाज विनंती सुरू झाली.");
+            }
             activeCommandCall = call;
             commandHandler.postDelayed(commandTimeout, 15000L);
             try {
@@ -155,5 +159,15 @@ public class ShivamWakeWordPlugin extends Plugin {
             }
             try { current.destroy(); } catch (Exception ignored) {}
         }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        PluginCall pending = activeCommandCall;
+        destroyCommandRecognizer();
+        if (pending != null) {
+            pending.reject("SHIVAM आवाज सेवा बंद झाली.");
+        }
+        super.handleOnDestroy();
     }
 }
