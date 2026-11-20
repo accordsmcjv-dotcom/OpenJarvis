@@ -175,31 +175,84 @@ public class ContactsCallPlugin extends Plugin {
         }
     }
 
-    // Opens the official YouTube app with search results for a spoken song/video request.
+    // Finds the first YouTube video for a spoken request, then opens its watch
+    // page in the official app so playback can start directly.
     @PluginMethod
     public void searchYouTube(PluginCall call) {
-        String query = call.getString("query", "").trim();
+        final String query = call.getString("query", "").trim();
         if (query.length() < 2 || query.length() > 200) {
             call.reject("गाण्याचे किंवा व्हिडिओचे नाव स्पष्ट सांगा.");
             return;
         }
-        try {
-            Uri uri = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query));
-            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-            intent.setPackage("com.google.android.youtube");
-            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-                call.reject("YouTube अॅप सापडले नाही. कृपया YouTube स्थापित किंवा अपडेट करा.");
-                return;
-            }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
-            JSObject result = new JSObject();
-            result.put("success", true);
-            result.put("message", "YouTube मध्ये शोध उघडला आहे.");
-            call.resolve(result);
-        } catch (Exception error) {
-            call.reject("YouTube उघडता आले नाही.", error);
+        if (!isYouTubeInstalled()) {
+            call.reject("YouTube अॅप सापडले नाही. कृपया YouTube स्थापित किंवा अपडेट करा.");
+            return;
         }
+        new Thread(() -> {
+            String videoId = null;
+            try {
+                java.net.URL url = new java.net.URL(
+                    "https://www.youtube.com/results?search_query=" +
+                    java.net.URLEncoder.encode(query, "UTF-8")
+                );
+                java.net.HttpURLConnection connection =
+                    (java.net.HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(10000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36");
+                connection.setRequestProperty("Accept-Language", "mr-IN,mr;q=0.9,en;q=0.8");
+                try (java.io.InputStream input = connection.getInputStream();
+                     java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    int total = 0;
+                    while ((read = input.read(buffer)) != -1 && total < 2 * 1024 * 1024) {
+                        output.write(buffer, 0, read);
+                        total += read;
+                    }
+                    String html = output.toString("UTF-8");
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                        .compile("\\\"videoId\\\"\\s*:\\s*\\\"([A-Za-z0-9_-]{11})\\\"")
+                        .matcher(html);
+                    if (matcher.find()) videoId = matcher.group(1);
+                } finally {
+                    connection.disconnect();
+                }
+            } catch (Exception ignored) {
+                // If YouTube blocks search extraction, open search results as a safe fallback.
+            }
+
+            final String selectedVideoId = videoId;
+            getActivity().runOnUiThread(() -> {
+                try {
+                    Uri uri = selectedVideoId != null
+                        ? Uri.parse("https://www.youtube.com/watch?v=" + selectedVideoId)
+                        : Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query));
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    intent.setPackage("com.google.android.youtube");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(intent);
+                    JSObject result = new JSObject();
+                    result.put("success", true);
+                    result.put("autoplay", selectedVideoId != null);
+                    result.put("message", selectedVideoId != null
+                        ? "पहिला व्हिडिओ YouTube मध्ये उघडला आहे."
+                        : "व्हिडिओ आपोआप निवडता आला नाही; YouTube शोध उघडला आहे.");
+                    call.resolve(result);
+                } catch (Exception error) {
+                    call.reject("YouTube व्हिडिओ उघडता आला नाही.", error);
+                }
+            });
+        }).start();
+    }
+
+    private boolean isYouTubeInstalled() {
+        Intent launch = getContext().getPackageManager()
+            .getLaunchIntentForPackage("com.google.android.youtube");
+        return launch != null;
     }
 
     // Opens a user-visible composer only after SHIVAM has confirmed the
