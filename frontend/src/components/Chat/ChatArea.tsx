@@ -63,6 +63,9 @@ export function ChatArea() {
   const previousChargerState = useRef<boolean | null>(null);
   const lowBatteryAlerted = useRef(false);
   const fullBatteryAlerted = useRef(false);
+  const hotBatteryAlerted = useRef(false);
+  const lowBatteryAlerted = useRef(false);
+  const fullBatteryAlerted = useRef(false);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -197,7 +200,30 @@ export function ChatArea() {
             }
             previousChargerState.current = info.chargerConnected;
           }
-          if (typeof info.batteryPercent === 'number') setBatteryLevel(info.batteryPercent);
+          if (typeof info.batteryPercent === 'number') {
+            setBatteryLevel(info.batteryPercent);
+            if (info.batteryPercent <= 20 && info.charging === false && !lowBatteryAlerted.current) {
+              lowBatteryAlerted.current = true;
+              void useTtsStore.getState().speak(`battery-low-${Date.now()}`, `बॅटरी ${info.batteryPercent} टक्के आहे. कृपया फोन चार्ज करा.`);
+            } else if (info.batteryPercent > 25 || info.charging === true) {
+              lowBatteryAlerted.current = false;
+            }
+
+            if (info.batteryPercent >= 100 && info.charging === true && !fullBatteryAlerted.current) {
+              fullBatteryAlerted.current = true;
+              void useTtsStore.getState().speak(`battery-full-${Date.now()}`, 'बॅटरी पूर्ण चार्ज झाली आहे. चार्जर काढू शकता.');
+            } else if (info.batteryPercent < 98 || info.charging === false) {
+              fullBatteryAlerted.current = false;
+            }
+          }
+          if (typeof info.batteryTemperatureC === 'number') {
+            if (info.batteryTemperatureC >= 45 && !hotBatteryAlerted.current) {
+              hotBatteryAlerted.current = true;
+              void useTtsStore.getState().speak(`battery-hot-${Date.now()}`, 'फोनची बॅटरी खूप गरम झाली आहे. काही वेळ फोनचा वापर थांबवा.');
+            } else if (info.batteryTemperatureC <= 42) {
+              hotBatteryAlerted.current = false;
+            }
+          }
           if (typeof info.charging === 'boolean') setBatteryCharging(info.charging);
           if (typeof info.batteryPercent === 'number' && typeof info.charging === 'boolean') {
             if (info.batteryPercent <= 20 && !info.charging && !lowBatteryAlerted.current) {
