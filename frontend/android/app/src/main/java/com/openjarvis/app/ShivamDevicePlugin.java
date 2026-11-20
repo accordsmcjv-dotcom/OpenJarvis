@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.Environment;
 import android.os.Build;
 import android.os.PowerManager;
 import android.os.StatFs;
@@ -151,9 +152,14 @@ public class ShivamDevicePlugin extends Plugin {
             result.put("wiredHeadphonesConnected", wiredHeadphonesConnected);
             result.put("headphonesConnected", bluetoothAudioConnected || wiredHeadphonesConnected);
 
-            StatFs storage = new StatFs(getContext().getFilesDir().getAbsolutePath());
-            result.put("storageFreeGb", storage.getAvailableBytes() / 1073741824.0);
-            result.put("storageTotalGb", storage.getTotalBytes() / 1073741824.0);
+            // Report the phone's shared internal storage volume, not this app's private sandbox.
+            File sharedStorage = Environment.getExternalStorageDirectory();
+            StatFs storage = new StatFs(sharedStorage.getAbsolutePath());
+            double storageFreeGb = storage.getAvailableBytes() / 1073741824.0;
+            double storageTotalGb = storage.getTotalBytes() / 1073741824.0;
+            result.put("storageFreeGb", storageFreeGb);
+            result.put("storageTotalGb", storageTotalGb);
+            result.put("storageScope", "DEVICE_SHARED_INTERNAL");
 
             ActivityManager manager = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
             if (manager != null) {
