@@ -1950,17 +1950,6 @@ class JarvisAPI(BaseHTTPRequestHandler):
             })
             return
 
-            result = execute_tool("open_android_app", payload)
-            action["status"] = "approved" if "result" in result else "failed"
-            action["execution_result"] = result
-            set_approval_status(action_id, action.get("status"), action.get("execution_result"))
-            self.send_json(200, {
-                "success": "result" in result,
-                "status": action["status"],
-                "result": result
-            })
-            return
-
         if self.path == "/v1/tools/execute":
             try:
                 length = int(self.headers.get("Content-Length", 0))
