@@ -23,15 +23,15 @@ const escapeHtml = (value: string) => value.replace(/[&<>"]/g, (ch) => ({ '&': '
 const parseDelimited = (source: string, delimiter: string): string[][] => {
   const rows: string[][] = [];
   let row: string[] = [], cell = '', quoted = false;
-  const input = source.replace(/^\\uFEFF/, '');
+  const input = source.replace(/^\uFEFF/, '');
   for (let i = 0; i < input.length; i++) {
     const ch = input[i];
     if (ch === '"') {
       if (quoted && input[i + 1] === '"') { cell += '"'; i++; }
       else quoted = !quoted;
     } else if (ch === delimiter && !quoted) { row.push(cell); cell = ''; }
-    else if ((ch === '\\n' || ch === '\\r') && !quoted) {
-      if (ch === '\\r' && input[i + 1] === '\\n') i++;
+    else if ((ch === '\n' || ch === '\r') && !quoted) {
+      if (ch === '\r' && input[i + 1] === '\n') i++;
       row.push(cell); rows.push(row); row = []; cell = '';
     } else cell += ch;
   }
@@ -147,7 +147,7 @@ export function SmartConverterPage() {
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(base)}</title><style>body{font:12pt Arial,sans-serif;white-space:pre-wrap;line-height:1.6;margin:2cm}</style></head><body>${escapeHtml(textPreview)}</body></html>`;
       downloadBlob(new Blob([html], { type: 'application/msword;charset=utf-8' }), base + (format === 'doc' ? '.doc' : '.html'));
     } else if (format === 'xls') {
-      const rows = parseDelimited(textPreview, file.name.toLowerCase().endsWith('.tsv') ? '\\t' : ',');
+      const rows = parseDelimited(textPreview, file.name.toLowerCase().endsWith('.tsv') ? '\t' : ',');
       const table = rows.map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell) + '</td>').join('') + '</tr>').join('');
       const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${table}</table></body></html>`;
       downloadBlob(new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }), base + '.xls');
