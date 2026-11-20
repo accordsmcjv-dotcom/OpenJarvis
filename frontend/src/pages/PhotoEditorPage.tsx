@@ -221,12 +221,29 @@ export function PhotoEditorPage() {
   function savePhoto() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const link = document.createElement('a');
     const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
     const extension = exportFormat === 'png' ? 'png' : 'jpg';
-    link.download = `${fileName || 'SHIVAM-Edited'}.${extension}`;
-    link.href = canvas.toDataURL(mimeType, exportQuality / 100);
-    link.click();
+    const downloadName = `${fileName || 'SHIVAM-Edited'}.${extension}`;
+    try {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          setError('फोटो तयार करता आला नाही. पुन्हा प्रयत्न करा.');
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = downloadName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        setError('');
+      }, mimeType, exportFormat === 'jpeg' ? exportQuality / 100 : undefined);
+    } catch {
+      setError('फोटो सेव्ह करता आला नाही. पुन्हा प्रयत्न करा.');
+    }
   }
 
   const controlStyle = { background: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)' };
