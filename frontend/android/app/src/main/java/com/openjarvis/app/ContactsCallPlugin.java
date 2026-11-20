@@ -138,6 +138,7 @@ public class ContactsCallPlugin extends Plugin {
         String number = call.getString("number", "").trim();
         String message = call.getString("message", "").trim();
         String digits = number.replaceAll("[^0-9]", "");
+        if (channel.equals("whatsapp") && digits.length() == 10) digits = "91" + digits;
         if (!(channel.equals("sms") || channel.equals("whatsapp"))) {
             call.reject("मेसेजचा प्रकार SMS किंवा WhatsApp असावा.");
             return;
