@@ -31,6 +31,15 @@
 
         <service android:name=".ShivamWakeWordService" android:enabled="true" android:exported="false" android:foregroundServiceType="microphone" />
         <service android:name=".ShivamScreenCaptureService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service
+            android:name=".ShivamNotificationListenerService"
+            android:label="SHIVAM Smart Notifications"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
