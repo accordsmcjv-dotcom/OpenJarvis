@@ -130,4 +130,46 @@ public class ContactsCallPlugin extends Plugin {
             call.reject("कॉल सुरू करता आला नाही.", error);
         }
     }
+    // Opens a user-visible composer only after SHIVAM has confirmed the
+    // recipient and exact message. The user completes the final Send action.
+    @PluginMethod
+    public void openMessageComposer(PluginCall call) {
+        String channel = call.getString("channel", "").trim().toLowerCase(java.util.Locale.ROOT);
+        String number = call.getString("number", "").trim();
+        String message = call.getString("message", "").trim();
+        String digits = number.replaceAll("[^0-9]", "");
+        if (!(channel.equals("sms") || channel.equals("whatsapp"))) {
+            call.reject("मेसेजचा प्रकार SMS किंवा WhatsApp असावा.");
+            return;
+        }
+        if (digits.length() < 7 || digits.length() > 15 || message.isEmpty() || message.length() > 4000) {
+            call.reject("फोन नंबर किंवा मेसेज योग्य नाही.");
+            return;
+        }
+        try {
+            Intent intent;
+            if (channel.equals("sms")) {
+                intent = new Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null));
+                intent.putExtra("sms_body", message);
+            } else {
+                Uri uri = Uri.parse("https://wa.me/" + digits + "?text=" + Uri.encode(message));
+                intent = new Intent(Intent.ACTION_VIEW, uri);
+                intent.setPackage("com.whatsapp");
+                if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                    intent.setPackage(null);
+                }
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "मेसेज तयार केला आहे. पाठवण्यासाठी अॅपमधील Send बटण दाबा.");
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject(channel.equals("whatsapp")
+                ? "WhatsApp उघडता आले नाही. WhatsApp स्थापित आहे का ते तपासा."
+                : "SMS अॅप उघडता आले नाही.", error);
+        }
+    }
+
 }
