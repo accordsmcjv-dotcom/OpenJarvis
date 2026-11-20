@@ -3,6 +3,8 @@ package com.openjarvis.app;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -20,6 +22,13 @@ import java.util.ArrayList;
 @CapacitorPlugin(name = "ShivamWakeWord")
 public class ShivamWakeWordPlugin extends Plugin {
     private SpeechRecognizer commandRecognizer;
+    private final Handler commandHandler = new Handler(Looper.getMainLooper());
+    private PluginCall activeCommandCall;
+    private final Runnable commandTimeout = () -> {
+        PluginCall pending = activeCommandCall;
+        releaseCommandRecognizer();
+        if (pending != null) pending.reject("आवाज ओळखण्यासाठी वेळ संपला. पुन्हा प्रयत्न करा.");
+    };
 
     @PluginMethod
     public void startListening(PluginCall call) {
@@ -60,6 +69,8 @@ public class ShivamWakeWordPlugin extends Plugin {
 
         getActivity().runOnUiThread(() -> {
             destroyCommandRecognizer();
+            activeCommandCall = call;
+            commandHandler.postDelayed(commandTimeout, 15000L);
             try {
                 commandRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
                 commandRecognizer.setRecognitionListener(new RecognitionListener() {
@@ -103,7 +114,7 @@ public class ShivamWakeWordPlugin extends Plugin {
                 request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
                 commandRecognizer.startListening(request);
             } catch (Exception e) {
-                destroyCommandRecognizer();
+                releaseCommandRecognizer();
                 call.reject("मराठी आवाज ओळख सुरू करता आली नाही: " + e.getMessage());
             }
         });
@@ -134,6 +145,8 @@ public class ShivamWakeWordPlugin extends Plugin {
     }
 
     private void closeCommandRecognizer(boolean cancel) {
+        commandHandler.removeCallbacks(commandTimeout);
+        activeCommandCall = null;
         SpeechRecognizer current = commandRecognizer;
         commandRecognizer = null;
         if (current != null) {
