@@ -550,14 +550,14 @@ export function InputArea() {
       }
     }
 
-    const navigationIntent = /(कुठे जाय|कसा जाय|कशी जाय|कसे जाय|कसा जाऊ|कशी जाऊ|किती दूर|किती अंतर|किती वेळ|रस्ता दाखव|मार्ग दाखव|नेव्हिगेशन|navigation|navigate|directions|route|location|लोकेशन|जायचं आहे|जायचे आहे|ला जायचं|ला जायचे|रस्ता सांग|दिशा सांग)/.test(normalized)
+    const navigationIntent = /(कुठे जाय|कसा जाय|कशी जाय|कसे जाय|कसा जाऊ|कशी जाऊ|किती दूर|किती अंतर|किती वेळ|रस्ता दाखव|मार्ग दाखव|नेव्हिगेशन|navigation|navigate|directions|route|location|लोकेशन|जायचं आहे|जायचे आहे|ला जायचं|ला जायचे|रस्ता सांग|दिशा सांग|kuthe jay|kasa jay|kashi jay|kase jay|kasa jau|kiti dur|kiti antar|kiti vel|rasta dakhav|marg dakhav|kuthe jaycha|kasa jaycha|kashi jaychi|jaycha aahe|jayche aahe|location sang)/.test(normalized)
       && !/(youtube|यूट्यूब)/.test(normalized);
     if (navigationIntent) {
       const mode: 'driving' | 'bicycling' | 'walking' =
         /(पायी|चालत|walking|walk)/.test(normalized) ? 'walking'
         : /(बाइक|बाईक|दुचाकी|bike|bicycle|cycling)/.test(normalized) ? 'bicycling' : 'driving';
       const destination = normalized
-        .replace(/(शिवम|shivam|मला|जरा|कृपया|please|location|लोकेशन|ठिकाण|ठिकाणी|कुठे|कसा|कशी|कसे|जायचं|जायचे|जायचा|जाऊ|जाय|आहे|आहेत|किती|दूर|अंतर|वेळ|लागेल|रस्ता|मार्ग|दाखव|सांग|दिशा|नेव्हिगेशन|navigation|navigate|directions|route|traffic|ट्रॅफिक|गाडीने|कारने|कार|car|driving|drive|पायी|चालत|walking|walk|बाइक|बाईक|दुचाकी|bike|bicycle|cycling|ला|पर्यंत|मला|जायचं आहे|जायचे आहे)/g, ' ')
+        .replace(/(शिवम|shivam|मला|जरा|कृपया|please|location|लोकेशन|ठिकाण|ठिकाणी|कुठे|कसा|कशी|कसे|जायचं|जायचे|जायचा|जाऊ|जाय|आहे|आहेत|किती|दूर|अंतर|वेळ|लागेल|रस्ता|मार्ग|दाखव|सांग|दिशा|नेव्हिगेशन|navigation|navigate|directions|route|traffic|ट्रॅफिक|गाडीने|कारने|कार|car|driving|drive|पायी|चालत|walking|walk|बाइक|बाईक|दुचाकी|bike|bicycle|cycling|ला|पर्यंत|kasa|kashi|kase|kuthe|jaycha|jaychi|jayche|jau|aahe|ahe|kiti|dur|antar|vel|lagel|rasta|marg|dakhav|sang|paryant|la|paryant|mala|jaraa)/g, ' ')
         .replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
       if (destination.length < 2) {
         speakCallReply('शिवम विचारतोय, कुठे जायचे आहे? ठिकाणाचे नाव सांगा.');
