@@ -338,7 +338,7 @@ export function InputArea() {
     const content = (voiceCommand ?? input).trim();
     if (!content || streamState.isStreaming) return;
 
-        .replace(/[ ]+/g, ' ').trim();
+    const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|पाठव|पाठवा|send|yes|yeah|ok|okay|haan|ha|kar|kara|bhej|bhejo)(\s+(कर|करा|लाव|लावा|पाठव|पाठवा|send))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
