@@ -20,7 +20,7 @@ interface ShivamNavigationApi {
   startWatchman(): Promise<{ started: boolean }>;
   stopWatchman(): Promise<{ stopping: boolean }>;
   getTelemetry(): Promise<{
-    batteryPercent?: number; charging?: boolean; batteryTemperatureC?: number;
+    batteryPercent?: number; charging?: boolean; chargerConnected?: boolean; batteryTemperatureC?: number;
     storageFreeGb?: number; storageTotalGb?: number;
     memoryAvailableGb?: number; memoryTotalGb?: number;
     wifiEnabled?: boolean; wifiConnected?: boolean; internetValidated?: boolean; networkTransport?: string;
@@ -413,10 +413,15 @@ export function InputArea() {
           if (typeof info.storageFreeGb === 'number') parts.push(`मोकळी स्टोरेज ${info.storageFreeGb.toFixed(1)} जीबी आहे.`);
           if (typeof info.memoryAvailableGb === 'number') parts.push(`उपलब्ध RAM ${info.memoryAvailableGb.toFixed(1)} जीबी आहे.`);
           parts.push(`इंटरनेट ${info.internetValidated ? 'उपलब्ध आहे' : 'उपलब्ध नाही'}.`);
+          const network: Record<string, string> = { WIFI: 'Wi-Fi', CELLULAR: 'मोबाईल नेटवर्क', ETHERNET: 'इथरनेट', OTHER: 'इतर नेटवर्क', NONE: 'नेटवर्क जोडलेले नाही' };
+          parts.push(`नेटवर्क: ${network[info.networkTransport ?? ''] ?? 'माहिती उपलब्ध नाही'}.`);
           parts.push(info.wifiConnected ? 'Wi-Fi जोडलेले आहे.' : info.wifiEnabled ? 'Wi-Fi चालू आहे पण जोडलेले नाही.' : 'Wi-Fi बंद आहे.');
           parts.push(info.bluetoothAudioConnected ? 'Bluetooth हेडफोन जोडलेले आहेत.' : info.wiredHeadphonesConnected ? 'वायर्ड हेडफोन जोडलेले आहेत.' : 'हेडफोन जोडलेले नाहीत.');
           const ring: Record<string, string> = { NORMAL: 'रिंग मोड', SILENT: 'सायलेंट मोड', VIBRATE: 'व्हायब्रेशन मोड' };
+          const dnd: Record<string, string> = { OFF: 'बंद', TOTAL_SILENCE: 'पूर्ण शांतता', ALARMS_ONLY: 'फक्त अलार्म', PRIORITY_ONLY: 'प्राधान्य सूचना' };
           parts.push(`आवाज ${ring[info.ringerMode ?? ''] ?? 'माहिती उपलब्ध नाही'} मध्ये आहे.`);
+          parts.push(`डू नॉट डिस्टर्ब ${dnd[info.dndStatus ?? ''] ?? 'स्थिती उपलब्ध नाही'}.`);
+          if (typeof info.batteryTemperatureC === 'number') parts.push(`बॅटरीचे तापमान ${info.batteryTemperatureC.toFixed(1)} अंश सेल्सिअस आहे.`);
         }
         speakCallReply(parts.join(' ') || 'फोनची माहिती सध्या मिळाली नाही.');
       } catch (error) {
