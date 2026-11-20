@@ -2594,9 +2594,12 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             "messages": messages,
                             "stream": True,
                             "temperature": request.get("temperature", 0.7),
-                            "max_tokens": 2048
+                            "max_tokens": 2048,
+                            "tools": tool_specs,
+                            "tool_choice": "auto"
                         }
 
+                        followup_calls = {}
                         final_answer_start = len(answer)
                         try:
                             with openrouter_stream(client, headers, final_payload) as final_upstream:
@@ -2628,9 +2631,23 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                             chunk = json.loads(data)
                                             choices = chunk.get("choices", [])
                                             if choices:
-                                                content = choices[0].get("delta", {}).get("content")
+                                                delta = choices[0].get("delta", {})
+                                                content = delta.get("content")
                                                 if isinstance(content, str):
                                                     answer += content
+                                                for tool_delta in delta.get("tool_calls", []):
+                                                    tool_index = tool_delta.get("index", 0)
+                                                    item = followup_calls.setdefault(tool_index, {
+                                                        "id": "", "type": "function",
+                                                        "function": {"name": "", "arguments": ""}
+                                                    })
+                                                    if tool_delta.get("id"):
+                                                        item["id"] = tool_delta["id"]
+                                                    function_delta = tool_delta.get("function", {})
+                                                    if function_delta.get("name"):
+                                                        item["function"]["name"] += function_delta["name"]
+                                                    if function_delta.get("arguments"):
+                                                        item["function"]["arguments"] += function_delta["arguments"]
                                         except Exception as stream_error:
                                             record_recovery_diagnostic("FINAL_STREAM_PARSE", stream_error)
                                             print("[SHIVAM FINAL STREAM PARSE ERROR]", repr(stream_error))
@@ -2639,6 +2656,116 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         except Exception as final_stream_error:
                             print("[SHIVAM FINAL STREAM ERROR]", type(final_stream_error).__name__)
                             record_recovery_diagnostic("FINAL_STREAM", final_stream_error)
+
+                        # Bounded dependent follow-up: execute one additional round of
+                        # read-only tools using the results from the previous round.
+                        next_calls = [followup_calls[i] for i in sorted(followup_calls)][:5]
+                        if next_calls:
+                            messages.append({
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": next_calls
+                            })
+                            readonly_tools = {
+                                "web_search", "get_current_time", "smart_calculate",
+                                "smart_unit_convert", "get_system_info", "get_weather",
+                                "search_memory", "memory_dashboard", "detect_memory_conflicts",
+                                "recall_conversation_context", "memory_integrity_check",
+                                "list_memory_backups", "list_notes", "search_notes"
+                            }
+                            for follow_index, follow_call in enumerate(next_calls):
+                                follow_name = follow_call.get("function", {}).get("name", "")
+                                try:
+                                    follow_args = json.loads(follow_call.get("function", {}).get("arguments") or "{}")
+                                    if not isinstance(follow_args, dict):
+                                        raise ValueError("Invalid tool arguments")
+                                    validation_error = validate_tool_arguments(follow_name, follow_args, tool_specs)
+                                    if follow_name not in readonly_tools or validation_error:
+                                        follow_result = {"error": validation_error or "या पुढील टप्प्यात फक्त सुरक्षित माहिती-वाचणारी Tools अनुमत आहेत."}
+                                    elif follow_name == "web_search":
+                                        follow_result = tavily_web_search(follow_args["query"], follow_args.get("max_results", 5))
+                                    elif follow_name == "get_current_time":
+                                        follow_result = execute_tool(follow_name, follow_args)
+                                    elif follow_name == "smart_calculate":
+                                        follow_result = {"expression": follow_args["expression"], "answer": smart_calculate(follow_args["expression"])}
+                                    elif follow_name == "smart_unit_convert":
+                                        follow_result = smart_unit_convert(follow_args["value"], follow_args["from_unit"], follow_args["to_unit"])
+                                    elif follow_name == "get_system_info":
+                                        follow_result = execute_tool(follow_name, follow_args)
+                                    elif follow_name == "get_weather":
+                                        follow_result = get_badnera_weather(follow_args)
+                                    elif follow_name == "search_memory":
+                                        follow_result = search_memory(follow_args.get("query", ""), follow_args.get("category", ""), follow_args.get("limit", 10))
+                                    elif follow_name == "memory_dashboard":
+                                        follow_result = memory_dashboard()
+                                    elif follow_name == "detect_memory_conflicts":
+                                        follow_result = detect_memory_conflicts()
+                                    elif follow_name == "recall_conversation_context":
+                                        follow_result = recall_conversation_context(follow_args["query"], follow_args.get("limit", 8))
+                                    elif follow_name == "memory_integrity_check":
+                                        follow_result = memory_integrity_check()
+                                    elif follow_name == "list_memory_backups":
+                                        follow_result = list_memory_backups()
+                                    elif follow_name == "list_notes":
+                                        follow_result = list_notes()
+                                    elif follow_name == "search_notes":
+                                        follow_result = search_notes(follow_args["query"])
+                                    else:
+                                        follow_result = {"error": "हे Tool उपलब्ध नाही."}
+                                    if not isinstance(follow_result, dict):
+                                        follow_result = {"result": follow_result}
+                                except Exception as follow_error:
+                                    print("[SHIVAM FOLLOW-UP TOOL ERROR]", follow_name, type(follow_error).__name__)
+                                    follow_result = {"error": "पुढील Tool टप्पा पूर्ण करता आला नाही."}
+
+                                self.wfile.write(("event: tool_call_start\\ndata: " + json.dumps({
+                                    "tool": follow_name, "arguments": follow_args if "follow_args" in locals() else {}
+                                }, ensure_ascii=False) + "\\n\\n").encode("utf-8"))
+                                self.wfile.flush()
+                                self.wfile.write(("event: tool_call_end\\ndata: " + json.dumps({
+                                    "tool": follow_name,
+                                    "success": "error" not in follow_result and follow_result.get("success") is not False,
+                                    "status": "success" if "error" not in follow_result and follow_result.get("success") is not False else "error",
+                                    "result": follow_result
+                                }, ensure_ascii=False) + "\\n\\n").encode("utf-8"))
+                                self.wfile.flush()
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": follow_call.get("id") or ("follow_" + str(follow_index)),
+                                    "content": json.dumps(follow_result, ensure_ascii=False)
+                                })
+
+                            # Ask the model to synthesize the dependent results; no further
+                            # tool execution is allowed in this final synthesis call.
+                            synthesis_payload = {
+                                "model": model_id,
+                                "messages": messages,
+                                "stream": True,
+                                "temperature": request.get("temperature", 0.7),
+                                "max_tokens": 2048
+                            }
+                            try:
+                                with openrouter_stream(client, headers, synthesis_payload) as synthesis_upstream:
+                                    if synthesis_upstream.status_code == 200:
+                                        for synthesis_line in safe_stream_lines(synthesis_upstream, "SYNTHESIS"):
+                                            if not synthesis_line.startswith("data:"):
+                                                continue
+                                            synthesis_data = synthesis_line[5:].strip()
+                                            if synthesis_data == "[DONE]":
+                                                break
+                                            try:
+                                                synthesis_chunk = json.loads(synthesis_data)
+                                                synthesis_choices = synthesis_chunk.get("choices", [])
+                                                if synthesis_choices:
+                                                    synthesis_text = synthesis_choices[0].get("delta", {}).get("content")
+                                                    if isinstance(synthesis_text, str):
+                                                        answer += synthesis_text
+                                            except Exception:
+                                                continue
+                                    else:
+                                        print("[SHIVAM SYNTHESIS ERROR]", synthesis_upstream.status_code)
+                            except Exception as synthesis_error:
+                                print("[SHIVAM SYNTHESIS FAILED]", type(synthesis_error).__name__)
 
                     final_part = correct_marathi(answer[final_answer_start:])
                     answer = answer[:final_answer_start] + final_part
