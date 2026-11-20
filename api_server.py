@@ -82,6 +82,19 @@ def save_approvals(data):
     save_json(APPROVALS_FILE, data)
 
 
+def set_approval_status(action_id, status, execution_result=None):
+    """Update one approval against the latest queue without overwriting concurrent additions."""
+    with APPROVAL_LOCK:
+        approvals = load_approvals()
+        action = next((item for item in approvals if item.get("id") == action_id), None)
+        if action is None:
+            return False
+        action["status"] = status
+        if execution_result is not None:
+            action["execution_result"] = execution_result
+        save_approvals(approvals)
+        return True
+
 
 def create_tool_approval(tool_name, arguments):
     import datetime
@@ -1694,29 +1707,31 @@ class JarvisAPI(BaseHTTPRequestHandler):
         elif self.path == "/v1/approvals/pending":
             import datetime
             now = datetime.datetime.now(datetime.timezone.utc)
-            approvals = load_approvals()
-            pending = []
-            changed = False
+            # Expiry updates and queue reads must not race with approval creation/completion.
+            with APPROVAL_LOCK:
+                approvals = load_approvals()
+                pending = []
+                changed = False
 
-            for action in approvals:
-                if action.get("status") != "pending":
-                    continue
-                try:
-                    expires = datetime.datetime.fromisoformat(
-                        action["expires_at"].replace("Z", "+00:00")
-                    )
-                    if expires <= now:
+                for action in approvals:
+                    if action.get("status") != "pending":
+                        continue
+                    try:
+                        expires = datetime.datetime.fromisoformat(
+                            action["expires_at"].replace("Z", "+00:00")
+                        )
+                        if expires <= now:
+                            action["status"] = "expired"
+                            changed = True
+                            continue
+                    except Exception:
                         action["status"] = "expired"
                         changed = True
                         continue
-                except Exception:
-                    action["status"] = "expired"
-                    changed = True
-                    continue
-                pending.append(action)
+                    pending.append(action)
 
-            if changed:
-                save_approvals(approvals)
+                if changed:
+                    save_approvals(approvals)
 
             self.send_json(200, {"actions": pending})
         else:
@@ -1854,18 +1869,18 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 )
                 if expires <= datetime.datetime.now(datetime.timezone.utc):
                     action["status"] = "expired"
-                    save_approvals(approvals)
+                    set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                     self.send_json(410, {"error": "Approval ची मुदत संपली"})
                     return
             except Exception:
                 action["status"] = "expired"
-                save_approvals(approvals)
+                set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                 self.send_json(410, {"error": "Invalid approval expiry"})
                 return
 
             if decision == "deny":
                 action["status"] = "denied"
-                save_approvals(approvals)
+                set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                 self.send_json(200, {"success": True, "status": "denied"})
                 return
 
@@ -1877,7 +1892,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 if tool_name not in allowed_mutations or not isinstance(arguments, dict):
                     action["status"] = "failed"
                     action["execution_result"] = {"error": "Invalid tool approval payload"}
-                    save_approvals(approvals)
+                    set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                     self.send_json(400, {"error": "Invalid tool approval payload"})
                     return
                 try:
@@ -1899,12 +1914,12 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     )
                     action["status"] = "approved" if succeeded else "failed"
                     action["execution_result"] = result
-                    save_approvals(approvals)
+                    set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                     self.send_json(200, {"success": succeeded, "status": action["status"], "result": result})
                 except Exception:
                     action["status"] = "failed"
                     action["execution_result"] = {"error": "मंजूर केलेली कृती पूर्ण करता आली नाही."}
-                    save_approvals(approvals)
+                    set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                     self.send_json(500, {"error": "Approved action failed"})
                 return
 
@@ -1917,7 +1932,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             ):
                 action["status"] = "failed"
                 action["execution_result"] = {"error": "Invalid approval payload"}
-                save_approvals(approvals)
+                set_approval_status(action_id, action.get("status"), action.get("execution_result"))
                 self.send_json(400, {"error": "Invalid approval payload"})
                 return
 
@@ -1927,7 +1942,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             succeeded = isinstance(execution, dict) and execution.get("success") is True
             action["status"] = "approved" if succeeded else "failed"
             action["execution_result"] = result
-            save_approvals(approvals)
+            set_approval_status(action_id, action.get("status"), action.get("execution_result"))
             self.send_json(200, {
                 "success": succeeded,
                 "status": action["status"],
@@ -1938,7 +1953,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             result = execute_tool("open_android_app", payload)
             action["status"] = "approved" if "result" in result else "failed"
             action["execution_result"] = result
-            save_approvals(approvals)
+            set_approval_status(action_id, action.get("status"), action.get("execution_result"))
             self.send_json(200, {
                 "success": "result" in result,
                 "status": action["status"],
