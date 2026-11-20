@@ -108,7 +108,7 @@ def execute_tool(tool_name, arguments=None):
             if set(arguments) != {"app_name"}:
                 return {"error": "App चे नाव आवश्यक आहे."}
             app_name = arguments["app_name"]
-            allowed = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"}
+            allowed = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone", "maps", "calendar", "contacts", "messages", "clock", "files"}
             if not isinstance(app_name, str) or app_name.lower().strip() not in allowed:
                 return {"error": "हे App परवानगी यादीत नाही."}
             return {"result": tool(app_name)}
