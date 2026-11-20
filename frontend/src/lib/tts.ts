@@ -125,11 +125,13 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
         if (mine !== token) return;
         teardown();
         set({ state: 'idle', speakingId: null });
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('shivamTtsFinished'));
       };
       el.onerror = () => {
         if (mine !== token) return;
         teardown();
         set({ state: 'idle', speakingId: null, error: 'Playback failed', errorId: id });
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('shivamTtsFinished'));
       };
 
       await el.play();
@@ -144,6 +146,7 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
         error: err instanceof Error ? err.message : 'Speech synthesis failed',
         errorId: id,
       });
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('shivamTtsFinished'));
     }
   },
 
