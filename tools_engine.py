@@ -23,14 +23,29 @@ def get_system_info():
 
 
 def get_available_tools():
+    """SHIVAM च्या API मधील प्रत्यक्ष उपलब्ध क्षमतांची यादी द्या."""
     return [
-        {"name": "get_current_time", "description": "सध्याची तारीख आणि वेळ मिळवा."},
-        {"name": "get_system_info", "description": "डिव्हाइस आणि Python ची माहिती मिळवा."},
-        {"name": "get_available_tools", "description": "SHIVAM ची उपलब्ध क्षमता तपासा."},
-        {"name": "save_memory_item", "description": "नवीन दीर्घकालीन Memory जतन करा."},
-        {"name": "update_memory_item", "description": "आधीची Memory अपडेट करा."},
-        {"name": "forget_memory_item", "description": "वापरकर्त्याने सांगितलेली विशिष्ट Memory विसरा."},
-        {"name": "open_android_app", "description": "परवानगीतील Android App उघडा."}
+        {"name": "get_current_time", "description": "सध्याची तारीख, वेळ आणि वार मिळवा."},
+        {"name": "get_system_info", "description": "Android डिव्हाइस आणि Python ची माहिती मिळवा."},
+        {"name": "get_available_tools", "description": "SHIVAM ची उपलब्ध साधने आणि क्षमता तपासा."},
+        {"name": "smart_calculate", "description": "बेरीज, वजाबाकी, गुणाकार, भागाकार आणि सुरक्षित गणिती उदाहरणे सोडवा."},
+        {"name": "smart_unit_convert", "description": "लांबी, वजन, वेळ, तापमान आणि इतर समर्थित एककांचे रूपांतर करा."},
+        {"name": "get_weather", "description": "बदनेरा-अमरावतीचे सध्याचे हवामान आणि अंदाज मिळवा."},
+        {"name": "web_search", "description": "ताजी माहिती इंटरनेटवर शोधा."},
+        {"name": "search_memory", "description": "जतन केलेली माहिती विषय किंवा Category नुसार शोधा."},
+        {"name": "save_memory_item", "description": "वापरकर्त्याने स्पष्टपणे सांगितलेली दीर्घकालीन माहिती जतन करा."},
+        {"name": "update_memory_item", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार आधीची Memory बदला."},
+        {"name": "forget_memory_item", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार विशिष्ट Memory हटवा."},
+        {"name": "memory_dashboard", "description": "Memory ची आकडेवारी आणि सुरक्षित नोंदींची स्थिती तपासा."},
+        {"name": "recall_conversation_context", "description": "मागील संभाषणातील संबंधित संदर्भ शोधा."},
+        {"name": "add_note", "description": "नवीन नोंद किंवा टिपण जतन करा."},
+        {"name": "list_notes", "description": "जतन केलेल्या नोंदींची यादी दाखवा."},
+        {"name": "search_notes", "description": "नोंदींमध्ये शब्द किंवा विषय शोधा."},
+        {"name": "delete_note", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार निवडलेली नोंद हटवा."},
+        {"name": "open_android_app", "description": "वापरकर्त्याची मंजुरी मिळाल्यानंतर समर्थित Android App उघडा."},
+        {"name": "screen_understanding", "description": "वापरकर्त्याच्या परवानगीने स्क्रीनवरील मजकूर वाचा."},
+        {"name": "photo_text_recognition", "description": "निवडलेल्या फोटोमधील मराठी आणि इंग्रजी मजकूर फोनवरच वाचा."},
+        {"name": "managed_agents", "description": "नियोजित आणि अनेक टप्प्यांची Agent कामे व्यवस्थापित करा."}
     ]
 
 
