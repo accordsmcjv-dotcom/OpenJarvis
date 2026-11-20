@@ -75,6 +75,8 @@ public class ShivamDevicePlugin extends Plugin {
                 int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
                 int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
                 if (level >= 0 && scale > 0) result.put("batteryPercent", Math.round(level * 100f / scale));
+                int plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+                result.put("chargerConnected", plugged != 0);
                 int status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
                 result.put("charging", status == BatteryManager.BATTERY_STATUS_CHARGING
                     || status == BatteryManager.BATTERY_STATUS_FULL);
