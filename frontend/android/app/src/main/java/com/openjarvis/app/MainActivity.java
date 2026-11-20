@@ -16,9 +16,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ShivamWakeWordPlugin.class);
         super.onCreate(savedInstanceState);
-        dispatchWakeIntent(getIntent());
+        Intent launchIntent = getIntent();
+        boolean launchedByWakeWord = launchIntent != null
+                && "com.openjarvis.app.SHIVAM_WAKE".equals(launchIntent.getAction());
+        dispatchWakeIntent(launchIntent);
         requestShivamPermissions();
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+        if (!launchedByWakeWord
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startShivamWakeWordService();
         }
     }
