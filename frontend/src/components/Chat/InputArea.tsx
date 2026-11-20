@@ -6,7 +6,7 @@ import { streamChat, streamResearch } from '../../lib/sse';
 import { fetchSavings, getBase } from '../../lib/api';
 import { listConnectors, getSyncStatus } from '../../lib/connectors-api';
 import { serializeToolCallArguments } from '../../lib/tool-call';
-import { findShivamContacts, placeShivamCall, type ShivamContact } from '../../lib/shivam-calls';
+import { findShivamContacts, placeShivamCall, openShivamMessageComposer, type ShivamContact } from '../../lib/shivam-calls';
 import {
   engineFromCompletionChunk,
   resolveChatEngine,
@@ -108,6 +108,13 @@ function useResearchCorpusSync(enabled: boolean): {
 export function InputArea() {
   const [input, setInput] = useState('');
   const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'number' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{
+    channel: 'whatsapp' | 'sms';
+    stage: 'number' | 'choose' | 'recipient-confirm' | 'message' | 'final-confirm';
+    contacts: ShivamContact[];
+    selected?: ShivamContact;
+    message?: string;
+  } | null>(null);
 
   useEffect(() => {
     const insertScreenText = (event: Event) => {
@@ -412,6 +419,117 @@ export function InputArea() {
         } else {
           setPendingCall({ stage: 'choose', contacts: result.contacts });
           speakCallReply('या नावाशी जुळणारे अनेक संपर्क आहेत. शिवम विचारतोय, कोणाला कॉल करू?');
+        }
+      } catch (error) {
+        speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत. संपर्क परवानगी तपासा.');
+      }
+      return;
+    }
+
+    // Voice-first WhatsApp/SMS flow. The app opens a prefilled composer;
+    // the user performs the final Send action inside that messaging app.
+    if (pendingMessage) {
+      if (negative) {
+        setPendingMessage(null);
+        speakCallReply('ठीक आहे. मी मेसेज पाठवत नाही.');
+        return;
+      }
+      if (pendingMessage.stage === 'number') {
+        if (!isPhoneNumber) {
+          speakCallReply('कृपया योग्य मोबाईल नंबर सांगा.');
+          return;
+        }
+        const selected = { name: 'या नंबरवर', number: spokenNumber };
+        setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
+        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        return;
+      }
+      if (pendingMessage.stage === 'choose') {
+        const matches = pendingMessage.contacts.filter((contact) =>
+          contact.name.toLocaleLowerCase('mr-IN').includes(normalized)
+          || contact.number.replace(/\\D/g, '').endsWith(normalized.replace(/\\D/g, '')),
+        );
+        if (matches.length !== 1) {
+          speakCallReply(matches.length > 1 ? 'या नावाचे अनेक संपर्क आहेत. पूर्ण नाव किंवा क्रमांकाचा शेवट सांगा.' : 'कृपया संपर्काचे पूर्ण नाव सांगा.');
+          return;
+        }
+        const selected = matches[0];
+        setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
+        speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        return;
+      }
+      if (pendingMessage.stage === 'recipient-confirm') {
+        if (!affirmative) {
+          speakCallReply('पुढे जायचे असल्यास हो म्हणा, किंवा रद्द करण्यासाठी नको म्हणा.');
+          return;
+        }
+        setPendingMessage({ ...pendingMessage, stage: 'message' });
+        speakCallReply('शिवम विचारतोय, काय मेसेज पाठवू?');
+        return;
+      }
+      if (pendingMessage.stage === 'message') {
+        setPendingMessage({ ...pendingMessage, stage: 'final-confirm', message: content });
+        speakCallReply(`शिवम विचारतोय, हा मेसेज पाठवू का? ${content}`);
+        return;
+      }
+      if (pendingMessage.stage === 'final-confirm') {
+        if (!affirmative) {
+          speakCallReply('मेसेज पाठवण्यासाठी हो म्हणा, किंवा बदलायचा असल्यास नवीन मेसेज सांगा.');
+          return;
+        }
+        const selected = pendingMessage.selected;
+        const message = pendingMessage.message;
+        const channel = pendingMessage.channel;
+        if (!selected || !message) {
+          setPendingMessage(null);
+          speakCallReply('मेसेजची माहिती अपूर्ण आहे. पुन्हा प्रयत्न करा.');
+          return;
+        }
+        setPendingMessage(null);
+        try {
+          await openShivamMessageComposer(channel, selected.number, message);
+          speakCallReply(channel === 'whatsapp'
+            ? 'WhatsApp उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.'
+            : 'SMS अॅप उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी Send बटण दाबा.');
+        } catch (error) {
+          speakCallReply(error instanceof Error ? error.message : 'मेसेज अॅप उघडता आले नाही.');
+        }
+        return;
+      }
+    }
+
+    const whatsappIntent = /(whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप)/.test(normalized);
+    const smsIntent = /(sms|एसएमएस|text message|टेक्स्ट मेसेज|मजकूर संदेश)/.test(normalized);
+    const messageIntent = whatsappIntent || smsIntent;
+    if (messageIntent) {
+      const channel: 'whatsapp' | 'sms' = whatsappIntent ? 'whatsapp' : 'sms';
+      if (isPhoneNumber) {
+        const selected = { name: 'या नंबरवर', number: spokenNumber };
+        setPendingMessage({ channel, stage: 'recipient-confirm', contacts: [], selected });
+        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        return;
+      }
+      const target = normalized
+        .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
+        .replace(/(^|\\s)(ला|ला$|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\\s|$)/g, ' ')
+        .replace(/\\s+/g, ' ').trim();
+      if (!target) {
+        setPendingMessage({ channel, stage: 'number', contacts: [] });
+        speakCallReply(`शिवम विचारतोय, कोणत्या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? नंबर सांगा.`);
+        return;
+      }
+      try {
+        const result = await findShivamContacts(target);
+        if (!result.contacts.length) {
+          setPendingMessage({ channel, stage: 'number', contacts: [] });
+          speakCallReply(`${target} या नावाचा संपर्क सापडला नाही. कृपया मोबाईल नंबर सांगा.`);
+        } else if (result.contacts.length === 1) {
+          const selected = result.contacts[0];
+          setPendingMessage({ channel, stage: 'recipient-confirm', contacts: result.contacts, selected });
+          speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        } else {
+          setPendingMessage({ channel, stage: 'choose', contacts: result.contacts });
+          speakCallReply('या नावाशी जुळणारे अनेक संपर्क आहेत. कोणता संपर्क निवडायचा ते नाव सांगा.');
         }
       } catch (error) {
         speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत. संपर्क परवानगी तपासा.');
