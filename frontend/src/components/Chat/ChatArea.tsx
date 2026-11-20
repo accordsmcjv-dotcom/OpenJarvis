@@ -17,6 +17,9 @@ interface ShivamLocationPlugin {
 const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
 interface ShivamDevicePlugin {
+  getNotificationAccessStatus(): Promise<{ granted: boolean }>;
+  openNotificationAccessSettings(): Promise<void>;
+  addListener(eventName: 'notificationReceived', listener: (event: { packageName: string; title: string; text: string }) => void): Promise<{ remove: () => Promise<void> }>;
   getTelemetry(): Promise<{
     batteryPercent?: number; charging?: boolean; chargerConnected?: boolean; batteryTemperatureC?: number;
     storageFreeGb?: number; storageTotalGb?: number;
@@ -63,6 +66,8 @@ export function ChatArea() {
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
+  const [notificationAccessGranted, setNotificationAccessGranted] = useState(false);
+  const [lastSmartNotification, setLastSmartNotification] = useState('');
   const previousChargerState = useRef<boolean | null>(null);
   const lowBatteryAlerted = useRef(false);
   const fullBatteryAlerted = useRef(false);
@@ -187,6 +192,37 @@ export function ChatArea() {
     const timer = window.setInterval(loadWeather, 15 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [weatherCity, weatherLocation]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    let listenerHandle: { remove: () => Promise<void> } | null = null;
+    void ShivamDevice.getNotificationAccessStatus()
+      .then((status) => { if (active) setNotificationAccessGranted(status.granted); })
+      .catch(() => undefined);
+    void ShivamDevice.addListener('notificationReceived', (event) => {
+      if (!active) return;
+      const title = (event.title || '').trim();
+      const body = (event.text || '').trim();
+      const message = [title, body].filter(Boolean).join(' — ');
+      if (!message) return;
+      setLastSmartNotification(message);
+      void useTtsStore.getState().speak(`notification-${Date.now()}`, `नवीन सूचना. ${message}`);
+    }).then((handle) => { listenerHandle = handle; })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      if (listenerHandle) void listenerHandle.remove();
+    };
+  }, []);
+
+  const enableNotificationAccess = async () => {
+    try {
+      await ShivamDevice.openNotificationAccessSettings();
+    } catch {
+      setLastSmartNotification('Notification Access सेटिंग उघडता आली नाही.');
+    }
+  };
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -576,6 +612,12 @@ export function ChatArea() {
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{deviceTelemetry?.batteryPercent === undefined && batteryLevel === null ? 'N/A' : `${deviceTelemetry?.batteryPercent ?? batteryLevel}% · ${(deviceTelemetry?.charging ?? batteryCharging) === null ? '—' : (deviceTelemetry?.charging ?? batteryCharging) ? 'CHARGING' : 'ON BATTERY'}`}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
+              <div className="shivam-glass-cell">
+                <span className="shivam-glass-icon">♧</span><span className="shivam-glass-label">SMART NOTIFICATIONS</span>
+                <b>{notificationAccessGranted ? 'ACCESS ENABLED' : 'ACCESS OFF'}</b>
+                {!notificationAccessGranted && <button type="button" onClick={enableNotificationAccess} className="text-xs underline" style={{ color: 'var(--color-accent)' }}>परवानगी सेट करा</button>}
+              </div>
+              {lastSmartNotification && <div className="shivam-glass-cell"><span className="shivam-glass-icon">✉</span><span className="shivam-glass-label">LAST NOTIFICATION</span><b>{lastSmartNotification}</b></div>}
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">HUMIDITY</span><b>{weatherHumidity === null ? "N/A" : `${weatherHumidity}%`}</b></div>
               {deviceTelemetry?.storageFreeGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▤</span><span className="shivam-glass-label">DEVICE STORAGE · FREE</span><b>{deviceTelemetry.storageFreeGb.toFixed(1)} / {(deviceTelemetry.storageTotalGb ?? 0).toFixed(1)} GB</b></div>}
