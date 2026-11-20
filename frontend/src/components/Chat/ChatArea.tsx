@@ -23,6 +23,7 @@ interface ShivamDevicePlugin {
     memoryAvailableGb?: number; memoryTotalGb?: number; lowMemory?: boolean;
     thermalStatus?: string; deviceModel?: string; androidVersion?: string;
     bluetoothAudioConnected?: boolean; wiredHeadphonesConnected?: boolean; headphonesConnected?: boolean;
+    networkConnected?: boolean; internetValidated?: boolean; wifiEnabled?: boolean; wifiConnected?: boolean; networkTransport?: string;
   }>;
 }
 const ShivamDevice = registerPlugin<ShivamDevicePlugin>('ShivamDevice');
@@ -66,6 +67,8 @@ export function ChatArea() {
   const fullBatteryAlerted = useRef(false);
   const hotBatteryAlerted = useRef(false);
   const previousHeadphonesState = useRef<boolean | null>(null);
+  const previousInternetState = useRef<boolean | null>(null);
+  const previousWifiState = useRef<boolean | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -189,6 +192,28 @@ export function ChatArea() {
         const info = await ShivamDevice.getTelemetry();
         if (!cancelled) {
           setDeviceTelemetry(info);
+          if (typeof info.internetValidated === 'boolean') {
+            const previous = previousInternetState.current;
+            if (previous !== null && previous !== info.internetValidated) {
+              const message = info.internetValidated
+                ? 'इंटरनेट कनेक्शन पुन्हा सुरू झाले आहे.'
+                : 'इंटरनेट कनेक्शन उपलब्ध नाही.';
+              void useTtsStore.getState().speak(`internet-${info.internetValidated ? 'online' : 'offline'}-${Date.now()}`, message);
+            }
+            previousInternetState.current = info.internetValidated;
+          }
+          if (typeof info.wifiConnected === 'boolean') {
+            const previous = previousWifiState.current;
+            if (previous !== null && previous !== info.wifiConnected) {
+              const message = info.wifiConnected ? 'Wi-Fi जोडले गेले आहे.' : 'Wi-Fi डिस्कनेक्ट झाले आहे.';
+              void useTtsStore.getState().speak(`wifi-${info.wifiConnected ? 'connected' : 'disconnected'}-${Date.now()}`, message);
+            }
+            previousWifiState.current = info.wifiConnected;
+          }
+          if (typeof info.internetValidated === 'boolean') {
+            setNetworkOnline(info.internetValidated);
+            setNetworkType(info.networkTransport ?? (info.internetValidated ? 'CONNECTED' : 'OFFLINE'));
+          }
           if (typeof info.headphonesConnected === 'boolean') {
             const previous = previousHeadphonesState.current;
             if (previous !== null && previous !== info.headphonesConnected) {
