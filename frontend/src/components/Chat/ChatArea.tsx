@@ -18,6 +18,9 @@ const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
 interface ShivamDevicePlugin {
   getNotificationAccessStatus(): Promise<{ granted: boolean }>;
+  getWatchmanStatus(): Promise<{ enabled: boolean }>;
+  startWatchman(): Promise<{ started: boolean }>;
+  stopWatchman(): Promise<{ stopping: boolean }>;
   openNotificationAccessSettings(): Promise<void>;
   addListener(eventName: 'notificationReceived', listener: (event: { packageName: string; title: string; text: string }) => void): Promise<{ remove: () => Promise<void> }>;
   getTelemetry(): Promise<{
@@ -67,6 +70,8 @@ export function ChatArea() {
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
   const [notificationAccessGranted, setNotificationAccessGranted] = useState(false);
+  const [watchmanEnabled, setWatchmanEnabled] = useState(false);
+  const [watchmanBusy, setWatchmanBusy] = useState(false);
   const [notificationReadingEnabled, setNotificationReadingEnabled] = useState(() => {
     try { return localStorage.getItem('shivam_notification_reading') === 'true'; } catch { return false; }
   });
@@ -203,6 +208,9 @@ export function ChatArea() {
     void ShivamDevice.getNotificationAccessStatus()
       .then((status) => { if (active) setNotificationAccessGranted(status.granted); })
       .catch(() => undefined);
+    void ShivamDevice.getWatchmanStatus()
+      .then((status) => { if (active) setWatchmanEnabled(status.enabled); })
+      .catch(() => undefined);
     void ShivamDevice.addListener('notificationReceived', (event) => {
       if (!active || !notificationReadingEnabled) return;
       const packageName = (event.packageName || '').toLowerCase();
@@ -222,6 +230,24 @@ export function ChatArea() {
       if (listenerHandle) void listenerHandle.remove();
     };
   }, [notificationReadingEnabled]);
+
+  const toggleWatchman = async () => {
+    if (watchmanBusy) return;
+    setWatchmanBusy(true);
+    try {
+      if (watchmanEnabled) {
+        await ShivamDevice.stopWatchman();
+        setWatchmanEnabled(false);
+      } else {
+        await ShivamDevice.startWatchman();
+        setWatchmanEnabled(true);
+      }
+    } catch {
+      setLastSmartNotification('Smart Watchman सुरू किंवा बंद करता आला नाही. Notification परवानगी तपासा.');
+    } finally {
+      setWatchmanBusy(false);
+    }
+  };
 
   const enableNotificationAccess = async () => {
     try {
@@ -631,6 +657,13 @@ export function ChatArea() {
                   {notificationReadingEnabled ? 'सूचना वाचणे बंद करा' : 'सूचना वाचणे सुरू करा'}
                 </button>
                 {!notificationAccessGranted && <button type="button" onClick={enableNotificationAccess} className="text-xs underline" style={{ color: 'var(--color-accent)' }}>परवानगी सेट करा</button>}
+              </div>
+              <div className="shivam-glass-cell">
+                <span className="shivam-glass-icon">◉</span><span className="shivam-glass-label">SHIVAM SMART WATCHMAN</span>
+                <b>{watchmanEnabled ? 'MONITORING ON' : 'MONITORING OFF'}</b>
+                {Capacitor.isNativePlatform() && <button type="button" disabled={watchmanBusy} onClick={() => void toggleWatchman()} className="text-xs underline disabled:opacity-50" style={{ color: 'var(--color-accent)' }}>
+                  {watchmanBusy ? 'कृपया थांबा…' : watchmanEnabled ? 'Watchman बंद करा' : 'Watchman सुरू करा'}
+                </button>}
               </div>
               {lastSmartNotification && <div className="shivam-glass-cell"><span className="shivam-glass-icon">✉</span><span className="shivam-glass-label">LAST NOTIFICATION</span><b>{lastSmartNotification}</b></div>}
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
