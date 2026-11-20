@@ -2,6 +2,8 @@ package com.openjarvis.app;
 
 import android.app.ActivityManager;
 import android.app.NotificationManager;
+import android.provider.Settings;
+import android.content.ComponentName;
 import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -13,7 +15,6 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.os.StatFs;
 import android.media.AudioDeviceInfo;
-import android.media.AudioManager;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -32,6 +33,7 @@ import java.io.File;
 public class ShivamDevicePlugin extends Plugin {
     private BroadcastReceiver chargingReceiver;
     private boolean chargingMonitorRegistered = false;
+    private BroadcastReceiver notificationReceiver;
 
     @PluginMethod
     public void startChargingMonitor(PluginCall call) {
@@ -76,6 +78,48 @@ public class ShivamDevicePlugin extends Plugin {
             call.reject("चार्जर मॉनिटर बंद करता आला नाही.", error);
         }
     }
+    @Override
+    public void load() {
+        super.load();
+        notificationReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) {
+                JSObject event = new JSObject();
+                event.put("packageName", intent.getStringExtra("packageName"));
+                event.put("title", intent.getStringExtra("title"));
+                event.put("text", intent.getStringExtra("text"));
+                notifyListeners("notificationReceived", event);
+            }
+        };
+        IntentFilter filter = new IntentFilter("com.openjarvis.app.NOTIFICATION_CAPTURED");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getContext().registerReceiver(notificationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            getContext().registerReceiver(notificationReceiver, filter);
+        }
+    }
+
+    @PluginMethod
+    public void getNotificationAccessStatus(PluginCall call) {
+        ComponentName listener = new ComponentName(getContext(), ShivamNotificationListenerService.class);
+        String enabled = Settings.Secure.getString(getContext().getContentResolver(), "enabled_notification_listeners");
+        boolean granted = enabled != null && enabled.contains(listener.flattenToString());
+        JSObject result = new JSObject();
+        result.put("granted", granted);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void openNotificationAccessSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("Notification Access सेटिंग उघडता आली नाही.", error);
+        }
+    }
+
     @PluginMethod
     public void getTelemetry(PluginCall call) {
         try {
