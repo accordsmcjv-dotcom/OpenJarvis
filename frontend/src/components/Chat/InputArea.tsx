@@ -373,6 +373,16 @@ export function InputArea() {
     const content = (voiceCommand ?? input).trim();
     if (!content || streamState.isStreaming) return;
 
+    const speakCallReply = (reply: string) => {
+      let id = activeId;
+      if (!id) id = createConversation(selectedModel || 'default');
+      addMessage(id, { id: generateId(), role: 'user', content, timestamp: Date.now() });
+      const assistantId = generateId();
+      addMessage(id, { id: assistantId, role: 'assistant', content: reply, timestamp: Date.now() });
+      void useTtsStore.getState().speak(assistantId, reply);
+      setInput('');
+    };
+
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
     const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|फोनची बॅटरी|बॅटरी किती|battery किती|battery status|फोनची storage|स्टोरेज किती|storage किती|ram किती|रॅम किती|wifi status|वायफायची स्थिती|हेडफोन जोडले|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status|phone chi sthiti|phone chi mahiti|phone status sang)/.test(normalized);
     if (deviceStatusIntent && Capacitor.isNativePlatform()) {
@@ -398,6 +408,7 @@ export function InputArea() {
         }
         if (fullDeviceStatus) {
           if (typeof info.batteryPercent === 'number') parts.push(`बॅटरी ${info.batteryPercent} टक्के आहे.`);
+          if (typeof info.charging === 'boolean') parts.push(info.charging ? 'चार्जिंग सुरू आहे.' : 'चार्जिंग सुरू नाही.');
           if (typeof info.chargerConnected === 'boolean') parts.push(info.chargerConnected ? 'चार्जर जोडलेला आहे.' : 'चार्जर जोडलेला नाही.');
           if (typeof info.storageFreeGb === 'number') parts.push(`मोकळी स्टोरेज ${info.storageFreeGb.toFixed(1)} जीबी आहे.`);
           if (typeof info.memoryAvailableGb === 'number') parts.push(`उपलब्ध RAM ${info.memoryAvailableGb.toFixed(1)} जीबी आहे.`);
@@ -419,16 +430,6 @@ export function InputArea() {
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
     const spokenNumber = digitText.replace(/[^0-9]/g, '');
     const isPhoneNumber = spokenNumber.length >= 7 && spokenNumber.length <= 15;
-    const speakCallReply = (reply: string) => {
-      let id = activeId;
-      if (!id) id = createConversation(selectedModel || 'default');
-      addMessage(id, { id: generateId(), role: 'user', content, timestamp: Date.now() });
-      const assistantId = generateId();
-      addMessage(id, { id: assistantId, role: 'assistant', content: reply, timestamp: Date.now() });
-      void useTtsStore.getState().speak(assistantId, reply);
-      setInput('');
-    };
-
     if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open| open kar| chalu kar| suru kar| ughad)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
       cameraInputRef.current?.click();
       speakCallReply('कॅमेरा उघडत आहे. फोटो काढून झाल्यावर मी कपड्यांचा लूक तपासेन.');
