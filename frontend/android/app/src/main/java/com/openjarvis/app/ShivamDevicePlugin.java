@@ -1,0 +1,66 @@
+package com.openjarvis.app;
+
+import android.app.ActivityManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
+import android.os.Build;
+import android.os.PowerManager;
+import android.os.StatFs;
+
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.io.File;
+
+@CapacitorPlugin(name = "ShivamDevice")
+public class ShivamDevicePlugin extends Plugin {
+    @PluginMethod
+    public void getTelemetry(PluginCall call) {
+        try {
+            JSObject result = new JSObject();
+            Intent battery = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (battery != null) {
+                int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                if (level >= 0 && scale > 0) result.put("batteryPercent", Math.round(level * 100f / scale));
+                int status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                result.put("charging", status == BatteryManager.BATTERY_STATUS_CHARGING
+                    || status == BatteryManager.BATTERY_STATUS_FULL);
+                int temperature = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
+                if (temperature > 0) result.put("batteryTemperatureC", temperature / 10.0);
+            }
+
+            StatFs storage = new StatFs(getContext().getFilesDir().getAbsolutePath());
+            result.put("storageFreeGb", storage.getAvailableBytes() / 1073741824.0);
+            result.put("storageTotalGb", storage.getTotalBytes() / 1073741824.0);
+
+            ActivityManager manager = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+            if (manager != null) {
+                ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+                manager.getMemoryInfo(memory);
+                result.put("memoryAvailableGb", memory.availMem / 1073741824.0);
+                result.put("memoryTotalGb", memory.totalMem / 1073741824.0);
+                result.put("lowMemory", memory.lowMemory);
+            }
+
+            result.put("deviceModel", Build.MANUFACTURER + " " + Build.MODEL);
+            result.put("androidVersion", Build.VERSION.RELEASE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                PowerManager power = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+                if (power != null) {
+                    int thermal = power.getCurrentThermalStatus();
+                    String[] labels = {"NOMINAL", "LIGHT", "MODERATE", "SEVERE", "CRITICAL", "EMERGENCY", "SHUTDOWN"};
+                    if (thermal >= 0 && thermal < labels.length) result.put("thermalStatus", labels[thermal]);
+                }
+            }
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("डिव्हाइसची माहिती मिळवता आली नाही.", error);
+        }
+    }
+}
