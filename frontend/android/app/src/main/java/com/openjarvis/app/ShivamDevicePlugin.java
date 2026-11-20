@@ -99,6 +99,22 @@ public class ShivamDevicePlugin extends Plugin {
         }
     }
 
+
+    @Override
+    protected void handleOnDestroy() {
+        if (notificationReceiver != null) {
+            try { getContext().unregisterReceiver(notificationReceiver); } catch (Exception ignored) { }
+            notificationReceiver = null;
+        }
+        if (chargingMonitorRegistered && chargingReceiver != null) {
+            try { getContext().unregisterReceiver(chargingReceiver); } catch (Exception ignored) { }
+            chargingReceiver = null;
+            chargingMonitorRegistered = false;
+        }
+        super.handleOnDestroy();
+    }
+
+
     @PluginMethod
     public void startWatchman(PluginCall call) {
         try {
