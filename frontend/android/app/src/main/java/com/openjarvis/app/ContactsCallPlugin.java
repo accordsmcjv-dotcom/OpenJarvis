@@ -175,6 +175,33 @@ public class ContactsCallPlugin extends Plugin {
         }
     }
 
+    // Opens the official YouTube app with search results for a spoken song/video request.
+    @PluginMethod
+    public void searchYouTube(PluginCall call) {
+        String query = call.getString("query", "").trim();
+        if (query.length() < 2 || query.length() > 200) {
+            call.reject("गाण्याचे किंवा व्हिडिओचे नाव स्पष्ट सांगा.");
+            return;
+        }
+        try {
+            Uri uri = Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query));
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.setPackage("com.google.android.youtube");
+            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                call.reject("YouTube अॅप सापडले नाही. कृपया YouTube स्थापित किंवा अपडेट करा.");
+                return;
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "YouTube मध्ये शोध उघडला आहे.");
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("YouTube उघडता आले नाही.", error);
+        }
+    }
+
     // Opens a user-visible composer only after SHIVAM has confirmed the
     // recipient and exact message. The user completes the final Send action.
     @PluginMethod
