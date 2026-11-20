@@ -377,7 +377,7 @@ export function InputArea() {
         setPendingCall(null);
         try {
           await placeShivamCall(selected.number);
-          speakCallReply(`हो, शिवम आता ${selected.name} यांना कॉल लावत आहे.`);
+          speakCallReply(selected.name === 'या नंबरवर' ? `हो, शिवम आता ${selected.number} या नंबरवर कॉल लावत आहे.` : `हो, शिवम आता ${selected.name} यांना कॉल लावत आहे.`);
         } catch (error) {
           speakCallReply(error instanceof Error ? error.message : 'कॉल करता आला नाही. Android फोन परवानगी तपासा.');
         }
@@ -396,7 +396,7 @@ export function InputArea() {
         }
         const selected = matches[0];
         setPendingCall({ stage: 'confirm', contacts: pendingCall.contacts, selected });
-        speakCallReply(`शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
+        speakCallReply(selected.name === 'या नंबरवर' ? `शिवम विचारतोय, ${selected.number} या नंबरवर कॉल करू का?` : `शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
         return;
       }
       try {
@@ -430,7 +430,7 @@ export function InputArea() {
       }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|त्याला|तिला|याला|हिला|त्यांना|यांना|फोन|कॉल|call|phone|लाव|लावा|कर|करा|lav|kara|kar|please|now)/g, ' ')
-        .replace(/(^|\s)(ला|la)(?=\s|$)/g, ' ')
+        .replace(/(^|\s)(ला|la|या|नंबरवर|नंबर|number|var)(?=\s|$)/g, ' ')
         .replace(/\s+/g, ' ').trim();
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
