@@ -364,7 +364,7 @@ export function InputArea() {
       setInput('');
     };
 
-    if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
+    if (/^(कॅमेरा|camera)( उघड| सुरू कर| चालू कर| open| open kar| chalu kar| suru kar| ughad)?$/.test(normalized) || /^(फोटो काढ|photo ghe|photo kadh)$/.test(normalized)) {
       cameraInputRef.current?.click();
       speakCallReply('कॅमेरा उघडत आहे. फोटो काढून झाल्यावर मी कपड्यांचा लूक तपासेन.');
       return;
