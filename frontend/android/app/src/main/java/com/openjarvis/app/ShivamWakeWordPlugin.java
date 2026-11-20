@@ -77,7 +77,7 @@ public class ShivamWakeWordPlugin extends Plugin {
                                 SpeechRecognizer.RESULTS_RECOGNITION);
                         String transcript = matches == null || matches.isEmpty()
                                 ? "" : matches.get(0).trim();
-                        destroyCommandRecognizer();
+                        releaseCommandRecognizer();
                         if (transcript.isEmpty()) {
                             call.reject("आवाज समजला नाही. पुन्हा प्रयत्न करा.");
                             return;
@@ -89,7 +89,7 @@ public class ShivamWakeWordPlugin extends Plugin {
 
                     @Override
                     public void onError(int error) {
-                        destroyCommandRecognizer();
+                        releaseCommandRecognizer();
                         call.reject("मराठी आवाज ओळखता आला नाही. त्रुटी क्रमांक: " + error);
                     }
                 });
@@ -126,10 +126,21 @@ public class ShivamWakeWordPlugin extends Plugin {
     }
 
     private void destroyCommandRecognizer() {
-        if (commandRecognizer != null) {
-            try { commandRecognizer.cancel(); } catch (Exception ignored) {}
-            try { commandRecognizer.destroy(); } catch (Exception ignored) {}
-            commandRecognizer = null;
+        closeCommandRecognizer(true);
+    }
+
+    private void releaseCommandRecognizer() {
+        closeCommandRecognizer(false);
+    }
+
+    private void closeCommandRecognizer(boolean cancel) {
+        SpeechRecognizer current = commandRecognizer;
+        commandRecognizer = null;
+        if (current != null) {
+            if (cancel) {
+                try { current.cancel(); } catch (Exception ignored) {}
+            }
+            try { current.destroy(); } catch (Exception ignored) {}
         }
     }
 }
