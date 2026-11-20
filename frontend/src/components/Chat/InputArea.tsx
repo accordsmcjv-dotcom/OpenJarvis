@@ -32,13 +32,13 @@ import type {
 function speakShivamResponse(markdown: string): void {
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
   const spoken = markdown
-    .replace(/```[\\s\\S]*?```/g, ' कोड वगळला आहे. ')
-    .replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
-    .replace(/\\[([^\\]]+)\\]\\([^)]*\\)/g, '$1')
-    .replace(/https?:\\/\\/\\S+/g, '')
+    .replace(/```[\s\S]*?```/g, ' कोड वगळला आहे. ')
+    .replace(/!\[([^]]*)]([^)]*)/g, '$1')
+    .replace(/\[([^]]+)]([^)]*)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/[#*_`>~]/g, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 5000);
   if (!spoken) return;
@@ -119,8 +119,6 @@ export function InputArea() {
   const streamState = useAppStore((s) => s.streamState);
   const messages = useAppStore((s) => s.messages);
   const speechEnabled = useAppStore((s) => s.settings.speechEnabled);
-  const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
-  const voiceAutoplay = useAppStore((s) => s.settings.voiceAutoplay);
   const maxTokens = useAppStore((s) => s.settings.maxTokens);
   const temperature = useAppStore((s) => s.settings.temperature);
   const createConversation = useAppStore((s) => s.createConversation);
