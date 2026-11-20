@@ -1140,7 +1140,7 @@ export function InputArea() {
     const labels = { screen: 'स्क्रीन वाचत आहे…', pdf: 'PDF वाचत आहे…', 'image-text': 'फोटोतील मजकूर वाचत आहे…', 'image-describe': 'फोटोचे विश्लेषण करत आहे…' };
     setDocumentAction(labels[kind]);
     try {
-      const result = kind === 'screen'
+      const result: { text: string; message: string; pagesRead?: number; totalPages?: number } = kind === 'screen'
         ? await ShivamScreenUnderstanding.captureAndReadScreen()
         : kind === 'pdf'
           ? await ShivamScreenUnderstanding.pickPdfAndRead()
