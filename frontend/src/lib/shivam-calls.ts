@@ -10,6 +10,7 @@ interface ContactsCallPlugin {
   placeCall(options: { number: string }): Promise<{ success: boolean; message: string }>;
   openMessageComposer(options: { channel: 'sms' | 'whatsapp'; number: string; message: string }): Promise<{ success: boolean; message: string }>;
   sendSms(options: { number: string; message: string }): Promise<{ success: boolean; message: string }>;
+  searchYouTube(options: { query: string }): Promise<{ success: boolean; message: string }>;
 }
 
 const ContactsCall = registerPlugin<ContactsCallPlugin>('ContactsCall');
@@ -21,3 +22,5 @@ export const sendShivamSms = (number: string, message: string) => ContactsCall.s
 
 export const openShivamMessageComposer = (channel: 'sms' | 'whatsapp', number: string, message: string) =>
   ContactsCall.openMessageComposer({ channel, number, message });
+
+export const searchShivamYouTube = (query: string) => ContactsCall.searchYouTube({ query });
