@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip, Search, Camera, X, ScanEye, FileText, Image as ImageIcon } from 'lucide-react';
+import { Send, Square, Paperclip, Search, Camera, X, ScanEye, FileText, Image as ImageIcon, Ruler } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat, streamResearch } from '../../lib/sse';
@@ -1131,25 +1131,28 @@ export function InputArea() {
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
 
-  const runScreenTool = async (kind: 'screen' | 'pdf' | 'image-text' | 'image-describe') => {
+  const runScreenTool = async (kind: 'screen' | 'pdf' | 'image-text' | 'image-describe' | 'drawing-pdf' | 'drawing-image') => {
     if (!Capacitor.isNativePlatform()) {
       toast.error('ही सुविधा Android अॅपमध्ये उपलब्ध आहे.');
       return;
     }
     if (documentAction) return;
-    const labels = { screen: 'स्क्रीन वाचत आहे…', pdf: 'PDF वाचत आहे…', 'image-text': 'फोटोतील मजकूर वाचत आहे…', 'image-describe': 'फोटोचे विश्लेषण करत आहे…' };
+    const labels = { screen: 'स्क्रीन वाचत आहे…', pdf: 'PDF वाचत आहे…', 'image-text': 'फोटोतील मजकूर वाचत आहे…', 'image-describe': 'फोटोचे विश्लेषण करत आहे…', 'drawing-pdf': 'बांधकामाचे Drawing PDF वाचत आहे…', 'drawing-image': 'बांधकामाच्या Drawing मधील मजकूर वाचत आहे…' };
     setDocumentAction(labels[kind]);
     try {
       const result: { text: string; message: string; pagesRead?: number; totalPages?: number } = kind === 'screen'
         ? await ShivamScreenUnderstanding.captureAndReadScreen()
         : kind === 'pdf'
           ? await ShivamScreenUnderstanding.pickPdfAndRead()
-          : kind === 'image-text'
+           : kind === 'image-text' || kind === 'drawing-image'
             ? await ShivamScreenUnderstanding.pickImageAndRead()
-            : await ShivamScreenUnderstanding.pickImageAndDescribe();
+            : kind === 'drawing-pdf'
+              ? await ShivamScreenUnderstanding.pickPdfAndRead()
+              : await ShivamScreenUnderstanding.pickImageAndDescribe();
       const text = (result.text || '').trim();
       if (!text) throw new Error('वाचता येण्याजोगी माहिती मिळाली नाही.');
-      const prefix = kind === 'screen' ? 'माझ्या स्क्रीनवरील माहिती समजावून सांगा:' : kind === 'pdf' ? 'या PDF मधील माहिती समजावून सांगा:' : kind === 'image-text' ? 'या फोटोतील मजकूर वाचा आणि समजावून सांगा:' : 'या फोटोतील वस्तू आणि दृश्य ओळखा:';
+      const drawingPrompt = 'तुम्ही माझे बांधकाम Drawing Assistant आहात. खालील Drawing मधून दिसणारा मजकूर, मोजमाप, units, levels, grid/room names, notes आणि specifications वेगळे करून सोप्या मराठीत समजावून सांगा. Plan, Elevation, Section किंवा Structural Drawing यापैकी कोणता प्रकार दिसतो ते सांगा. स्पष्ट दिसणारी माहिती आणि अस्पष्ट/वाचता न येणारी माहिती वेगळी दाखवा. मोजमाप किंवा मजकूर स्वतःहून बनवू नका. Drawing मधील OCR मजकूरावरून जे ठरवता येत नाही ते स्पष्ट सांगा. Beam, column, footing, slab किंवा reinforcement बाबत अंतिम structural निर्णय देऊ नका; प्रत्यक्ष drawing आणि structural engineer कडून पडताळणी आवश्यक असल्याचे नमूद करा.\n\nOCR मधून मिळालेला मजकूर:\n';
+      const prefix = kind === 'drawing-pdf' || kind === 'drawing-image' ? drawingPrompt : kind === 'screen' ? 'माझ्या स्क्रीनवरील माहिती समजावून सांगा:' : kind === 'pdf' ? 'या PDF मधील माहिती समजावून सांगा:' : kind === 'image-text' ? 'या फोटोतील मजकूर वाचा आणि समजावून सांगा:' : 'या फोटोतील वस्तू आणि दृश्य ओळखा:';
       setInput(current => current ? current + '\n\n' + prefix + '\n' + text : prefix + '\n' + text);
       toast.success(kind === 'pdf' ? `PDF वाचला: ${result.pagesRead}/${result.totalPages} पाने` : result.message || 'माहिती चॅटमध्ये जोडली.');
     } catch (error) {
@@ -1200,6 +1203,12 @@ export function InputArea() {
               </button>
               <button type="button" onClick={() => void runScreenTool('image-describe')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }} title="फोटोतील वस्तू ओळखा">
                 <Search size={12} /> फोटो ओळखा
+              </button>
+              <button type="button" onClick={() => void runScreenTool('drawing-pdf')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)' }} title="बांधकामाचे PDF Drawing वाचा आणि समजावून घ्या">
+                <Ruler size={12} /> Drawing PDF
+              </button>
+              <button type="button" onClick={() => void runScreenTool('drawing-image')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)' }} title="बांधकामाच्या Drawing चा फोटो वाचा आणि समजावून घ्या">
+                <Ruler size={12} /> Drawing फोटो
               </button>
             </>
           )}
