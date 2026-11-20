@@ -235,7 +235,7 @@ public class ShivamWatchmanService extends Service {
                 || battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_FULL;
             if (percent >= 0 && percent <= 20 && !charging) postAlertOnce("battery_low", "बॅटरी " + percent + "% आहे. चार्जर जोडा.");
             else if (percent > 25 || charging) clearAlert("battery_low");
-            if (temp >= 450 && !charging) postAlertOnce("battery_hot", "बॅटरीचे तापमान " + String.format(Locale.ROOT, "%.1f", temp / 10.0) + "°C आहे.");
+            if (temp >= 450) postAlertOnce("battery_hot", "बॅटरीचे तापमान " + String.format(Locale.ROOT, "%.1f", temp / 10.0) + "°C आहे.");
             else if (temp > 0 && temp <= 420) clearAlert("battery_hot");
         }
         try {
