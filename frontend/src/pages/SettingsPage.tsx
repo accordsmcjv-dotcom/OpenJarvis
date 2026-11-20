@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   Palette,
   Globe,
@@ -38,6 +39,13 @@ import {
 import { isAutoUpdateDisabled, setAutoUpdateDisabled } from '../components/Desktop/UpdateChecker';
 
 const CLOUD_KEY_STATUS_CHANGED = 'openjarvis-cloud-key-status-changed';
+
+interface ShivamWakeWordApi {
+  startListening(): Promise<void>;
+  stopListening(): Promise<void>;
+}
+
+const ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
 
 function OllamaModelList() {
   const [models, setModels] = useState<Array<{ name: string; size: number }>>([]);
@@ -816,9 +824,22 @@ export function SettingsPage() {
 
           {/* Speech */}
           <Section title="Speech">
-            <SettingRow label="Speech-to-Text" description="Enable microphone input for voice dictation">
+            <SettingRow label="Speech-to-Text" description="Android वर SHIVAM wake word आणि voice input मायक्रोफोन नियंत्रण">
               <button
-                onClick={() => { updateSettings({ speechEnabled: !settings.speechEnabled }); showSaved(); }}
+                onClick={async () => {
+                  const next = !settings.speechEnabled;
+                  try {
+                    if (Capacitor.getPlatform() === 'android') {
+                      if (next) await ShivamWakeWord.startListening();
+                      else await ShivamWakeWord.stopListening();
+                    }
+                    updateSettings({ speechEnabled: next });
+                    showSaved();
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : 'मायक्रोफोन सेटिंग बदलता आली नाही.';
+                    window.alert(message);
+                  }
+                }}
                 className="relative w-11 h-6 rounded-full transition-colors cursor-pointer"
                 style={{
                   background: settings.speechEnabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
