@@ -1934,6 +1934,106 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "API endpoint not found"})
 
     def do_POST(self):
+        if self.path == "/v1/converter/extract":
+            try:
+                import io
+                import csv
+                import zipfile
+                import posixpath
+                import xml.etree.ElementTree as ET
+                length = int(self.headers.get("Content-Length", 0))
+                if length <= 0 or length > 20 * 1024 * 1024:
+                    self.send_json(400, {"error": "DOCX/XLSX फाइल 20 MB पेक्षा लहान असावी."})
+                    return
+                filename = urllib.parse.unquote(self.headers.get("X-File-Name", ""))
+                extension = os.path.splitext(filename)[1].lower()
+                if extension not in (".docx", ".xlsx"):
+                    self.send_json(400, {"error": "फक्त DOCX किंवा XLSX फाइल समर्थित आहे."})
+                    return
+                raw = self.rfile.read(length)
+                with zipfile.ZipFile(io.BytesIO(raw), "r") as archive:
+                    if extension == ".docx":
+                        root = ET.fromstring(archive.read("word/document.xml"))
+                        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+                        paragraphs = []
+                        for paragraph in root.findall(".//w:p", ns):
+                            parts = []
+                            for node in paragraph.iter():
+                                if node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t":
+                                    parts.append(node.text or "")
+                                elif node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tab":
+                                    parts.append("\\t")
+                                elif node.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br":
+                                    parts.append("\\n")
+                            line = "".join(parts)
+                            if line:
+                                paragraphs.append(line)
+                        extracted = "\\n".join(paragraphs)
+                        output_name = os.path.splitext(os.path.basename(filename))[0] + ".txt"
+                        output_format = "text"
+                    else:
+                        ns = {
+                            "m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                            "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+                            "rel": "http://schemas.openxmlformats.org/package/2006/relationships"
+                        }
+                        shared = []
+                        if "xl/sharedStrings.xml" in archive.namelist():
+                            shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+                            for item in shared_root.findall("m:si", ns):
+                                shared.append("".join(node.text or "" for node in item.findall(".//m:t", ns)))
+                        workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+                        first_sheet = workbook.find("m:sheets/m:sheet", ns)
+                        if first_sheet is None:
+                            raise ValueError("Excel शीट सापडली नाही.")
+                        rel_id = first_sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                        rel_root = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+                        target = next((rel.attrib.get("Target", "") for rel in rel_root.findall("rel:Relationship", ns) if rel.attrib.get("Id") == rel_id), "")
+                        if not target:
+                            raise ValueError("Excel शीटचा मार्ग सापडला नाही.")
+                        sheet_path = target.lstrip("/") if target.startswith("/") else posixpath.normpath(posixpath.join("xl", target))
+                        sheet_root = ET.fromstring(archive.read(sheet_path))
+                        rows = []
+                        for row_node in sheet_root.findall(".//m:sheetData/m:row", ns):
+                            values = {}
+                            max_col = 0
+                            for cell in row_node.findall("m:c", ns):
+                                ref = cell.attrib.get("r", "")
+                                letters = "".join(ch for ch in ref if ch.isalpha())
+                                col = 0
+                                for ch in letters.upper():
+                                    col = col * 26 + ord(ch) - 64
+                                if not col:
+                                    continue
+                                max_col = max(max_col, col)
+                                cell_type = cell.attrib.get("t", "")
+                                if cell_type == "inlineStr":
+                                    value = "".join(node.text or "" for node in cell.findall(".//m:t", ns))
+                                else:
+                                    value_node = cell.find("m:v", ns)
+                                    value = value_node.text if value_node is not None and value_node.text is not None else ""
+                                    if cell_type == "s" and value:
+                                        try:
+                                            value = shared[int(value)]
+                                        except (ValueError, IndexError):
+                                            value = ""
+                                    elif cell_type == "b":
+                                        value = "TRUE" if value == "1" else "FALSE"
+                                values[col] = value
+                            rows.append([values.get(index, "") for index in range(1, max_col + 1)])
+                        output = io.StringIO(newline="")
+                        writer = csv.writer(output)
+                        writer.writerows(rows)
+                        extracted = output.getvalue()
+                        output_name = os.path.splitext(os.path.basename(filename))[0] + ".csv"
+                        output_format = "csv"
+                if not extracted.strip():
+                    raise ValueError("या फाइलमध्ये वाचण्याजोगा मजकूर आढळला नाही.")
+                self.send_json(200, {"success": True, "filename": output_name, "format": output_format, "text": extracted})
+            except Exception as exc:
+                self.send_json(400, {"error": "फाइलमधील मजकूर काढता आला नाही: " + str(exc)[:180]})
+            return
+
         if self.path == "/v1/converter/convert":
             try:
                 length = int(self.headers.get("Content-Length", 0))
