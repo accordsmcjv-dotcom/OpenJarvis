@@ -159,6 +159,9 @@ export function InputArea() {
     const handleWake = async () => {
       if (!mounted || wakeInProgress) return;
       wakeInProgress = true;
+      // Each wake-word event starts a fresh capture cycle. Without resetting
+      // this flag, only the first "Shivam" event is accepted after mount.
+      captureStarted = false;
       localStorage.removeItem('shivam-wake-pending');
       toast.info('जी, सांगा. काय मदत करू?', { duration: 3500 });
       const capture = async () => {
@@ -174,10 +177,12 @@ export function InputArea() {
                 toast.success('तुमचा प्रश्न ऐकला आहे. पाठवण्यासाठी Send दाबा.');
               }
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
+            captureStarted = false;
             wakeInProgress = false;
             void ShivamWakeWord.startListening().catch(() => {});
           }, 7000);
         } catch {
+          captureStarted = false;
           wakeInProgress = false;
           toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.');
           void ShivamWakeWord.startListening().catch(() => {});
