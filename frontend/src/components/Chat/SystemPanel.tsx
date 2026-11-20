@@ -76,7 +76,22 @@ export function SystemPanel() {
     }
   }, [isAndroid, screenBusy]);
 
-  const readScene = useCallback(async () => {\n    if (!isAndroid || screenBusy) return;\n    setScreenBusy(true);\n    setScreenText('');\n    try {\n      const result = await ScreenUnderstanding.pickImageAndDescribe();\n      setScreenText(result.text || 'फोटोतील दृश्य ओळखता आले नाही.');\n      toast.success('फोटोतील दृश्याचे विश्लेषण पूर्ण.');\n    } catch (error) {\n      toast.error(error instanceof Error ? error.message : 'फोटोचे विश्लेषण करता आले नाही.');\n    } finally {\n      setScreenBusy(false);\n    }\n  }, [isAndroid, screenBusy]);\n\n  const readImage = useCallback(async () => {
+  const readScene = useCallback(async () => {
+    if (!isAndroid || screenBusy) return;
+    setScreenBusy(true);
+    setScreenText('');
+    try {
+      const result = await ScreenUnderstanding.pickImageAndDescribe();
+      setScreenText(result.text || 'फोटोतील दृश्य ओळखता आले नाही.');
+      toast.success('फोटोतील दृश्याचे विश्लेषण पूर्ण.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'फोटोचे विश्लेषण करता आले नाही.');
+    } finally {
+      setScreenBusy(false);
+    }
+  }, [isAndroid, screenBusy]);
+
+  const readImage = useCallback(async () => {
     if (!isAndroid || screenBusy) return;
     setScreenBusy(true);
     setScreenText('');
