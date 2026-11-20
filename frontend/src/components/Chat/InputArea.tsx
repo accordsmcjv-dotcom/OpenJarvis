@@ -29,32 +29,6 @@ import type {
 // progress so we can surface "Searching over N items — sync in progress"
 // next to the toggle. Polling is gated on `enabled` so toggling DR off
 // stops the network chatter immediately.
-function speakShivamResponse(markdown: string, onDone?: () => void): boolean {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return false;
-  const spoken = markdown
-    .replace(/```[\s\S]*?```/g, ' कोड वगळला आहे. ')
-    .replace(/!\[([^]]*)]([^)]*)/g, '$1')
-    .replace(/\[([^]]+)]([^)]*)/g, '$1')
-    .replace(/https?:\/\/\S+/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/[#*_`>~]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 5000);
-  if (!spoken) return false;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(spoken);
-  utterance.lang = 'mr-IN';
-  utterance.rate = 0.96;
-  utterance.pitch = 1;
-  let finished = false;
-  const finish = () => { if (finished) return; finished = true; onDone?.(); };
-  utterance.onend = finish;
-  utterance.onerror = finish;
-  window.speechSynthesis.speak(utterance);
-  return true;
-}
-
 function useResearchCorpusSync(enabled: boolean): {
   syncing: boolean;
   itemsSynced: number;
@@ -647,14 +621,6 @@ export function InputArea() {
         // Not a digest response or server unavailable — skip
       }
 
-      if (appState.settings.voiceOutputEnabled && appState.settings.voiceAutoplay && accumulatedContent && !controller.signal.aborted) {
-        const started = speakShivamResponse(accumulatedContent, () => {
-          if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
-        });
-        if (!started && speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
-      } else if (speechEnabled) {
-        void ShivamWakeWord.startListening().catch(() => {});
-      }
       updateLastAssistant(
         convId,
         accumulatedContent,
