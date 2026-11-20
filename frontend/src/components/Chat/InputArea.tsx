@@ -19,6 +19,15 @@ interface ShivamNavigationApi {
   openNavigation(options: { destination: string; mode: 'driving' | 'bicycling' | 'walking' }): Promise<{ opened: boolean; travelMode: string }>;
   startWatchman(): Promise<{ started: boolean }>;
   stopWatchman(): Promise<{ stopping: boolean }>;
+  getTelemetry(): Promise<{
+    batteryPercent?: number; charging?: boolean; batteryTemperatureC?: number;
+    storageFreeGb?: number; storageTotalGb?: number;
+    memoryAvailableGb?: number; memoryTotalGb?: number;
+    wifiEnabled?: boolean; wifiConnected?: boolean; internetValidated?: boolean; networkTransport?: string;
+    headphonesConnected?: boolean; bluetoothAudioConnected?: boolean; wiredHeadphonesConnected?: boolean;
+    ringerMode?: string; dndStatus?: string; screenInteractive?: boolean; deviceLocked?: boolean;
+    deviceModel?: string; androidVersion?: string; thermalStatus?: string;
+  }>;
 }
 const ShivamNavigation = registerPlugin<ShivamNavigationApi>('ShivamDevice');
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -365,6 +374,34 @@ export function InputArea() {
     if (!content || streamState.isStreaming) return;
 
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
+    const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनची बॅटरी|बॅटरी किती|battery किती|battery status|फोनची storage|स्टोरेज किती|storage किती|ram किती|रॅम किती|wifi status|वायफायची स्थिती|हेडफोन जोडले|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status)/.test(normalized);
+    if (deviceStatusIntent && Capacitor.isNativePlatform()) {
+      try {
+        const info = await ShivamNavigation.getTelemetry();
+        const parts: string[] = [];
+        if (/(बॅटरी|battery)/.test(normalized) && typeof info.batteryPercent === 'number') parts.push(`बॅटरी ${info.batteryPercent} टक्के आहे. ${info.charging ? 'चार्जिंग सुरू आहे.' : 'चार्जिंग सुरू नाही.'}`);
+        if (/(storage|स्टोरेज|जागा)/.test(normalized) && typeof info.storageFreeGb === 'number') parts.push(`फोनमध्ये ${info.storageFreeGb.toFixed(1)} जीबी जागा मोकळी आहे, एकूण ${(info.storageTotalGb ?? 0).toFixed(1)} जीबी.`);
+        if (/(ram|रॅम)/.test(normalized) && typeof info.memoryAvailableGb === 'number') parts.push(`RAM पैकी ${info.memoryAvailableGb.toFixed(1)} जीबी उपलब्ध आहे, एकूण ${(info.memoryTotalGb ?? 0).toFixed(1)} जीबी.`);
+        if (/(wifi|वायफाय|इंटरनेट)/.test(normalized)) parts.push(`Wi-Fi ${info.wifiEnabled ? (info.wifiConnected ? 'जोडलेले आहे' : 'चालू आहे, पण जोडलेले नाही') : 'बंद आहे'}. इंटरनेट ${info.internetValidated ? 'उपलब्ध आहे' : 'उपलब्ध नाही'}.`);
+        if (/(हेडफोन|bluetooth|ब्लूटूथ)/.test(normalized)) parts.push(info.bluetoothAudioConnected ? 'Bluetooth ऑडिओ हेडफोन जोडलेले आहेत.' : info.wiredHeadphonesConnected ? 'वायर्ड हेडफोन जोडलेले आहेत.' : 'हेडफोन जोडलेले नाहीत.');
+        if (/(ringer|सायलेंट|आवाज|डू नॉट डिस्टर्ब)/.test(normalized)) {
+          const ring: Record<string, string> = { NORMAL: 'रिंग मोड', SILENT: 'सायलेंट मोड', VIBRATE: 'व्हायब्रेशन मोड' };
+          const dnd: Record<string, string> = { OFF: 'बंद', TOTAL_SILENCE: 'पूर्ण शांतता', ALARMS_ONLY: 'फक्त अलार्म', PRIORITY_ONLY: 'प्राधान्य सूचना' };
+          parts.push(`फोनचा आवाज ${ring[info.ringerMode ?? ''] ?? 'माहिती उपलब्ध नाही'} मध्ये आहे. डू नॉट डिस्टर्ब ${dnd[info.dndStatus ?? ''] ?? 'स्थिती उपलब्ध नाही'}.`);
+        }
+        if (/(लॉक|screen|स्क्रीन|फोनची स्थिती|फोनची माहिती|device status|phone status)/.test(normalized)) {
+          if (info.deviceModel) parts.push(`डिव्हाइस ${info.deviceModel}, Android ${info.androidVersion ?? 'आवृत्ती अज्ञात'}.`);
+          if (typeof info.deviceLocked === 'boolean') parts.push(info.deviceLocked ? 'फोन लॉक आहे.' : 'फोन अनलॉक आहे.');
+          if (typeof info.screenInteractive === 'boolean') parts.push(info.screenInteractive ? 'स्क्रीन सुरू आहे.' : 'स्क्रीन बंद आहे.');
+          if (info.thermalStatus) parts.push(`फोनचे तापमान नियंत्रण स्थिती ${info.thermalStatus} आहे.`);
+        }
+        speakCallReply(parts.join(' ') || 'फोनची माहिती सध्या मिळाली नाही.');
+      } catch (error) {
+        speakCallReply(error instanceof Error ? error.message : 'फोनची माहिती मिळवता आली नाही.');
+      }
+      return;
+    }
+
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|पाठव|पाठवा|send|yes|yeah|ok|okay|haan|ha|kar|kara|bhej|bhejo)(\s+(कर|करा|लाव|लावा|पाठव|पाठवा|send))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
     const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
