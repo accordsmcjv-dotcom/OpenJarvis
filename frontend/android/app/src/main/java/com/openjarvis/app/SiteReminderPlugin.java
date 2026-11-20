@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import org.json.JSONObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -33,6 +34,10 @@ public class SiteReminderPlugin extends Plugin {
             AlarmManager alarms = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
             if (alarms == null) throw new IllegalStateException("Alarm service unavailable");
             alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending);
+            JSONObject saved = new JSONObject();
+            saved.put("id", id); saved.put("title", title); saved.put("site", site); saved.put("triggerAt", triggerAt);
+            getContext().getSharedPreferences("shivam_site_reminders", Context.MODE_PRIVATE)
+                .edit().putString("reminder_" + id, saved.toString()).apply();
             JSObject result = new JSObject();
             result.put("scheduled", true);
             call.resolve(result);
