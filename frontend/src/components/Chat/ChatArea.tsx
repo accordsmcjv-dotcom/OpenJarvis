@@ -186,7 +186,10 @@ export function ChatArea() {
           setDeviceTelemetry(info);
           if (typeof info.chargerConnected === 'boolean') {
             const previous = previousChargerState.current;
-            if (previous !== null && previous !== info.chargerConnected) {
+            if (previous === null) {
+              const message = info.chargerConnected ? 'चार्जर जोडलेला आहे.' : 'चार्जर जोडलेला नाही.';
+              void useTtsStore.getState().speak(`charger-status-${Date.now()}`, message);
+            } else if (previous !== info.chargerConnected) {
               const message = info.chargerConnected ? 'चार्जर जोडला गेला आहे.' : 'चार्जर काढला गेला आहे.';
               void useTtsStore.getState().speak(`charger-${info.chargerConnected ? 'connected' : 'disconnected'}-${Date.now()}`, message);
             }
