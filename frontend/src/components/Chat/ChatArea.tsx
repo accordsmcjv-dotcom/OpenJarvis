@@ -16,6 +16,16 @@ interface ShivamLocationPlugin {
 
 const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
+interface ShivamDevicePlugin {
+  getTelemetry(): Promise<{
+    batteryPercent?: number; charging?: boolean; batteryTemperatureC?: number;
+    storageFreeGb?: number; storageTotalGb?: number;
+    memoryAvailableGb?: number; memoryTotalGb?: number; lowMemory?: boolean;
+    thermalStatus?: string; deviceModel?: string; androidVersion?: string;
+  }>;
+}
+const ShivamDevice = registerPlugin<ShivamDevicePlugin>('ShivamDevice');
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'शुभ सकाळ';
@@ -49,6 +59,7 @@ export function ChatArea() {
   }, []);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
+  const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -163,6 +174,26 @@ export function ChatArea() {
     const timer = window.setInterval(loadWeather, 15 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [weatherCity, weatherLocation]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    const refreshTelemetry = async () => {
+      try {
+        const info = await ShivamDevice.getTelemetry();
+        if (!cancelled) {
+          setDeviceTelemetry(info);
+          if (typeof info.batteryPercent === 'number') setBatteryLevel(info.batteryPercent);
+          if (typeof info.charging === 'boolean') setBatteryCharging(info.charging);
+        }
+      } catch {
+        if (!cancelled) setDeviceTelemetry(null);
+      }
+    };
+    void refreshTelemetry();
+    const timer = window.setInterval(refreshTelemetry, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
 
   useEffect(() => {
     type BatteryLike = EventTarget & { level: number; charging: boolean; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
@@ -438,11 +469,16 @@ export function ChatArea() {
             <div className="shivam-glass-hud" aria-label="SHIVAM live device telemetry">
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◈</span><span className="shivam-glass-label">CORE</span><b>ONLINE</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">VOICE</span><b>{reactorState === 'listening' ? 'ACTIVE' : reactorState === 'speaking' ? 'SPEAK' : 'READY'}</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}% · ${batteryCharging === null ? '—' : batteryCharging ? 'CHARGING' : 'ON BATTERY'}`}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{deviceTelemetry?.batteryPercent === undefined && batteryLevel === null ? 'N/A' : `${deviceTelemetry?.batteryPercent ?? batteryLevel}% · ${(deviceTelemetry?.charging ?? batteryCharging) === null ? '—' : (deviceTelemetry?.charging ?? batteryCharging) ? 'CHARGING' : 'ON BATTERY'}`}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">HUMIDITY</span><b>{weatherHumidity === null ? "N/A" : `${weatherHumidity}%`}</b></div>
+              {deviceTelemetry?.storageFreeGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▤</span><span className="shivam-glass-label">FREE STORAGE</span><b>{deviceTelemetry.storageFreeGb.toFixed(1)} / {(deviceTelemetry.storageTotalGb ?? 0).toFixed(1)} GB</b></div>}
+              {deviceTelemetry?.memoryAvailableGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▦</span><span className="shivam-glass-label">AVAILABLE RAM</span><b>{deviceTelemetry.memoryAvailableGb.toFixed(1)} / {(deviceTelemetry.memoryTotalGb ?? 0).toFixed(1)} GB</b></div>}
+              {deviceTelemetry?.batteryTemperatureC !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">BATTERY TEMP</span><b>{deviceTelemetry.batteryTemperatureC.toFixed(1)}°C</b></div>}
+              {deviceTelemetry?.thermalStatus && <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">THERMAL STATUS</span><b>{deviceTelemetry.thermalStatus}</b></div>}
+              {deviceTelemetry?.deviceModel && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▣</span><span className="shivam-glass-label">DEVICE</span><b>{deviceTelemetry.deviceModel} · Android {deviceTelemetry.androidVersion ?? '—'}</b></div>}
             </div>
             <div className="shivam-weather-picker" aria-label="हवामानाचे स्थान निवडा">
               <button type="button" onClick={requestCurrentLocation} disabled={locationBusy} className="shivam-location-button">
