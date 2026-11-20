@@ -6,7 +6,7 @@ import { streamChat, streamResearch } from '../../lib/sse';
 import { fetchSavings, getBase } from '../../lib/api';
 import { listConnectors, getSyncStatus } from '../../lib/connectors-api';
 import { serializeToolCallArguments } from '../../lib/tool-call';
-import { findShivamContacts, placeShivamCall, openShivamMessageComposer, type ShivamContact } from '../../lib/shivam-calls';
+import { findShivamContacts, placeShivamCall, openShivamMessageComposer, sendShivamSms, type ShivamContact } from '../../lib/shivam-calls';
 import {
   engineFromCompletionChunk,
   resolveChatEngine,
@@ -440,8 +440,8 @@ export function InputArea() {
       return;
     }
 
-    // Voice-first WhatsApp/SMS flow. The app opens a prefilled composer;
-    // the user performs the final Send action inside that messaging app.
+    // Voice-first WhatsApp/SMS flow. SMS is sent natively after the explicit
+    // final voice confirmation; WhatsApp uses its official user-visible composer.
     if (pendingMessage) {
       if (negative) {
         setPendingMessage(null);
@@ -515,10 +515,13 @@ export function InputArea() {
         }
         setPendingMessage(null);
         try {
-          await openShivamMessageComposer(channel, selected.number, message);
-          speakCallReply(channel === 'whatsapp'
-            ? 'WhatsApp उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.'
-            : 'SMS अॅप उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी Send बटण दाबा.');
+          if (channel === 'sms') {
+            const result = await sendShivamSms(selected.number, message);
+            speakCallReply(result.message || 'SMS पाठवण्याची विनंती मोबाईल नेटवर्ककडे दिली आहे.');
+          } else {
+            await openShivamMessageComposer(channel, selected.number, message);
+            speakCallReply('WhatsApp उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.');
+          }
         } catch (error) {
           speakCallReply(error instanceof Error ? error.message : 'मेसेज अॅप उघडता आले नाही.');
         }
