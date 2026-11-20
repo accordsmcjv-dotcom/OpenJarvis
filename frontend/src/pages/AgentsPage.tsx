@@ -67,7 +67,7 @@ import type { ConnectRequest } from '../types/connectors';
 import { listConnectors, connectSource } from '../lib/connectors-api';
 import type { ToolCallInfo } from '../types';
 import { ToolCallCard } from '../components/Chat/ToolCallCard';
-import { getAgentSchedule, normalizeAgentSchedule } from '../lib/agent-schedule';
+import { getAgentSchedule, normalizeAgentSchedule, buildAgentExecutionInstruction } from '../lib/agent-schedule';
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -749,7 +749,7 @@ function LaunchWizard({
         temperature: wizard.temperature,
       };
       if (wizard.budget) config.budget = parseFloat(wizard.budget);
-      if (wizard.instruction.trim()) config.instruction = wizard.instruction.trim();
+      config.instruction = buildAgentExecutionInstruction(wizard.instruction);
       if (wizard.model) config.model = wizard.model;
       if (wizard.routerPolicy) config.router_policy = wizard.routerPolicy;
 
