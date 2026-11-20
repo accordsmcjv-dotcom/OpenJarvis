@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiFetch } from '../lib/api';
 import {
   ArrowLeftRight, Banknote, Calculator, Download, FileCog, Image as ImageIcon,
   RefreshCw, Upload, X,
@@ -20,25 +21,6 @@ const UNIT_GROUPS: Record<UnitCategory, { label: string; units: Record<string, U
 const CURRENCIES: Record<string, string> = { INR: 'भारतीय रुपया', USD: 'अमेरिकन डॉलर', EUR: 'युरो', GBP: 'ब्रिटिश पाउंड', AED: 'यूएई दिरहम', JPY: 'जपानी येन', CAD: 'कॅनेडियन डॉलर', AUD: 'ऑस्ट्रेलियन डॉलर', CHF: 'स्विस फ्रँक', SGD: 'सिंगापूर डॉलर' };
 const formatNumber = (value: number) => Number.isFinite(value) ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 8 }).format(value) : '—';
 const escapeHtml = (value: string) => value.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] || ch);
-const parseDelimited = (source: string, delimiter: string): string[][] => {
-  const rows: string[][] = [];
-  let row: string[] = [], cell = '', quoted = false;
-  const input = source.replace(/^\uFEFF/, '');
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-    if (ch === '"') {
-      if (quoted && input[i + 1] === '"') { cell += '"'; i++; }
-      else quoted = !quoted;
-    } else if (ch === delimiter && !quoted) { row.push(cell); cell = ''; }
-    else if ((ch === '\n' || ch === '\r') && !quoted) {
-      if (ch === '\r' && input[i + 1] === '\n') i++;
-      row.push(cell); rows.push(row); row = []; cell = '';
-    } else cell += ch;
-  }
-  if (cell.length || row.length) { row.push(cell); rows.push(row); }
-  return rows;
-};
-
 
 export function SmartConverterPage() {
   const [tab, setTab] = useState<Tab>('units');
@@ -100,7 +82,7 @@ export function SmartConverterPage() {
     const isImage = selected.type.startsWith('image/');
     const isText = selected.type.startsWith('text/') || /\.(txt|csv|tsv|md)$/i.test(selected.name);
     if (!isImage && !isText) {
-      setFileError('सध्या फोटो (JPG, PNG, WebP) आणि मजकूर/CSV फाइल्स समर्थित आहेत. PDF/Word/Excel फाइल थेट उघडण्याची सुविधा पुढील टप्प्यात जोडता येईल.');
+      setFileError('सध्या फोटो (JPG, PNG, WebP) आणि मजकूर/CSV फाइल्स इनपुट म्हणून समर्थित आहेत. PDF, DOCX आणि XLSX इनपुट अद्याप समर्थित नाहीत.');
       return;
     }
     if (selected.size > 20 * 1024 * 1024) { setFileError('फाइल 20 MB पेक्षा लहान निवडा.'); return; }
@@ -138,19 +120,34 @@ export function SmartConverterPage() {
     } catch (error) { setFileError(error instanceof Error ? error.message : 'फोटो रूपांतरित करता आला नाही.'); }
     finally { setFileBusy(false); }
   };
-  const convertText = (format: 'txt' | 'doc' | 'html' | 'csv' | 'xls') => {
+  const convertText = async (format: 'txt' | 'docx' | 'html' | 'csv' | 'xlsx') => {
     if (!file) return;
     const isCsv = /\.(csv|tsv)$/i.test(file.name);
-    if (format === 'csv' && !isCsv) { setFileError('CSV फाइलसाठी CSV किंवा TSV फाइल निवडा.'); return; }
+    if ((format === 'csv' || format === 'xlsx') && !isCsv) { setFileError('CSV किंवा TSV फाइल निवडा.'); return; }
+    if (format === 'docx' && isCsv) { setFileError('Word फाइलसाठी TXT किंवा MD मजकूर फाइल निवडा.'); return; }
     const base = file.name.replace(/\.[^.]+$/, '');
-    if (format === 'doc' || format === 'html') {
+    setFileError('');
+    if (format === 'docx' || format === 'xlsx') {
+      setFileBusy(true);
+      try {
+        const response = await apiFetch('/v1/converter/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ format: format === 'docx' ? 'word' : 'excel', title: base, filename: base, content: textPreview }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.download_url) throw new Error(result?.error || 'फाइल तयार करता आली नाही.');
+        const download = await apiFetch(result.download_url);
+        if (!download.ok) throw new Error('तयार फाइल डाउनलोड करता आली नाही.');
+        downloadBlob(await download.blob(), result.filename || (base + (format === 'docx' ? '.docx' : '.xlsx')));
+      } catch (error) {
+        setFileError(error instanceof Error ? error.message : 'फाइल रूपांतरित करता आली नाही.');
+      } finally {
+        setFileBusy(false);
+      }
+    } else if (format === 'html') {
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(base)}</title><style>body{font:12pt Arial,sans-serif;white-space:pre-wrap;line-height:1.6;margin:2cm}</style></head><body>${escapeHtml(textPreview)}</body></html>`;
-      downloadBlob(new Blob([html], { type: 'application/msword;charset=utf-8' }), base + (format === 'doc' ? '.doc' : '.html'));
-    } else if (format === 'xls') {
-      const rows = parseDelimited(textPreview, file.name.toLowerCase().endsWith('.tsv') ? '\t' : ',');
-      const table = rows.map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell) + '</td>').join('') + '</tr>').join('');
-      const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${table}</table></body></html>`;
-      downloadBlob(new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }), base + '.xls');
+      downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), base + '.html');
     } else {
       downloadBlob(new Blob([textPreview], { type: 'text/plain;charset=utf-8' }), base + (format === 'csv' ? '.csv' : '.txt'));
     }
@@ -200,10 +197,10 @@ export function SmartConverterPage() {
       {file && <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--color-bg-tertiary)' }}><div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{file.name}</p><p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{(file.size / 1024).toFixed(1)} KB</p></div><button onClick={() => chooseFile(null)} className="p-2"><X size={17} /></button></div>}
       {imageUrl && !fileError && <div className="rounded-xl overflow-hidden max-h-64 flex justify-center"><img src={imageUrl} alt="निवडलेला फोटो" className="max-h-64 object-contain" /></div>}
       {file && imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['image/jpeg', 'image/png', 'image/webp'] as const).map((format) => <button key={format} disabled={fileBusy} onClick={() => void convertImage(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{fileBusy ? 'रूपांतर सुरू…' : format === 'image/jpeg' ? 'JPG करा' : format === 'image/png' ? 'PNG करा' : 'WebP करा'}</button>)}</div>}
-      {file && !imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['txt', 'doc', 'html'] as const).map((format) => <button key={format} onClick={() => convertText(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{format.toUpperCase()} डाउनलोड</button>)}{/\.(csv|tsv)$/i.test(file.name) && <><button onClick={() => convertText('csv')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>CSV डाउनलोड</button><button onClick={() => convertText('xls')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Excel XLS डाउनलोड</button></>}</div>}
+      {file && !imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['txt', 'docx', 'html'] as const).map((format) => <button key={format} disabled={fileBusy} onClick={() => void convertText(format)} className="px-4 py-2 rounded-lg text-sm disabled:opacity-50" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{fileBusy ? 'रूपांतर सुरू…' : format.toUpperCase() + ' डाउनलोड'}</button>)}{/\.(csv|tsv)$/i.test(file.name) && <><button disabled={fileBusy} onClick={() => void convertText('csv')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>CSV डाउनलोड</button><button disabled={fileBusy} onClick={() => void convertText('xlsx')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Excel XLSX डाउनलोड</button></>}</div>}
       {file && !imageUrl && textPreview !== '' && <pre className="max-h-48 overflow-auto rounded-xl p-3 text-xs whitespace-pre-wrap" style={{ background: 'var(--color-bg-tertiary)' }}>{textPreview.slice(0, 5000)}{textPreview.length > 5000 ? '…' : ''}</pre>}
       {fileError && <p className="text-sm" style={{ color: 'var(--color-error)' }}>{fileError}</p>}
-      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>फाइल रूपांतरण फोन/ब्राउझरमध्येच होते; फाइल सर्व्हरवर अपलोड होत नाही. DOC हे Word-सुसंगत HTML स्वरूप आहे आणि XLS हे Excel-सुसंगत HTML टेबल स्वरूप आहे. PDF किंवा विद्यमान DOCX/XLSX फाइल थेट वाचणे/रूपांतरित करणे सध्या समर्थित नाही.</p>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो, TXT, HTML आणि CSV रूपांतरण फोन/ब्राउझरमध्ये होते. खरी DOCX आणि XLSX फाइल तयार करण्यासाठी मजकूर तुमच्या SHIVAM सर्व्हरकडे पाठवला जातो. PDF किंवा विद्यमान DOCX/XLSX फाइल इनपुट म्हणून वाचणे सध्या समर्थित नाही.</p>
     </section>}
   </div>;
 }
