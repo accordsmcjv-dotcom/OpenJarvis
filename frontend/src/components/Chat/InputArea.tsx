@@ -3,7 +3,7 @@ import { Send, Square, Paperclip, Search, Camera, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat, streamResearch } from '../../lib/sse';
-import { fetchSavings, getBase } from '../../lib/api';
+import { apiFetch, fetchSavings, getBase } from '../../lib/api';
 import { listConnectors, getSyncStatus } from '../../lib/connectors-api';
 import { serializeToolCallArguments } from '../../lib/tool-call';
 import { findShivamContacts, placeShivamCall, openShivamMessageComposer, sendShivamSms, searchShivamYouTube, type ShivamContact } from '../../lib/shivam-calls';
@@ -968,10 +968,18 @@ export function InputArea() {
               tc.result = data.result;
             }
             if (data.tool === 'create_document_file' && data.success && data.result?.download_url) {
-              const fileName = String(data.result.filename || 'फाइल डाउनलोड करा');
+              const fileName = String(data.result.filename || 'तयार केलेली फाइल');
               const downloadUrl = String(data.result.download_url);
               if (downloadUrl.startsWith('/v1/documents/download/')) {
-                accumulatedContent += '\n\n[' + fileName + ' डाउनलोड करा](' + getBase() + downloadUrl + ')';
+                void apiFetch(downloadUrl).then(async (response) => {
+                  if (!response.ok) throw new Error('फाइल डाउनलोड करता आली नाही.');
+                  const fileBlob = await response.blob();
+                  const objectUrl = URL.createObjectURL(fileBlob);
+                  accumulatedContent += '\\n\\n[' + fileName + ' डाउनलोड करा](' + objectUrl + ')';
+                  updateLastAssistant(convId, accumulatedContent, [...toolCalls]);
+                }).catch(() => {
+                  toast.error('फाइल तयार झाली; पण डाउनलोड लिंक उघडता आली नाही. पुन्हा प्रयत्न करा.');
+                });
               }
             }
             setStreamState({
