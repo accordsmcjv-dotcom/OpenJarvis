@@ -1124,14 +1124,14 @@ export function InputArea() {
             if (typeof reader.result !== 'string') { toast.error('फोटो वाचता आला नाही.'); return; }
             const image = new Image();
             image.onload = () => {
-              const scale = Math.min(1, 1440 / Math.max(image.width, image.height));
+              const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
               const canvas = document.createElement('canvas');
               canvas.width = Math.max(1, Math.round(image.width * scale));
               canvas.height = Math.max(1, Math.round(image.height * scale));
               const context = canvas.getContext('2d');
               if (!context) { toast.error('फोटो तयार करता आला नाही.'); return; }
               context.drawImage(image, 0, 0, canvas.width, canvas.height);
-              setCameraPhoto(canvas.toDataURL('image/jpeg', 0.82));
+              setCameraPhoto(canvas.toDataURL('image/jpeg', 0.76));
               setInput((current) => current || 'माझ्या कपड्यांचा लूक कसा दिसतो?');
             };
             image.onerror = () => toast.error('फोटो उघडता आला नाही.');
