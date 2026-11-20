@@ -20,7 +20,8 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "ContactsCall",
     permissions = {
         @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
-        @Permission(alias = "call", strings = { Manifest.permission.CALL_PHONE })
+        @Permission(alias = "call", strings = { Manifest.permission.CALL_PHONE }),
+        @Permission(alias = "sms", strings = { Manifest.permission.SEND_SMS })
     }
 )
 public class ContactsCallPlugin extends Plugin {
@@ -130,6 +131,50 @@ public class ContactsCallPlugin extends Plugin {
             call.reject("कॉल सुरू करता आला नाही.", error);
         }
     }
+    // Sends SMS only after SHIVAM has confirmed the exact recipient and text.
+    @PluginMethod
+    public void sendSms(PluginCall call) {
+        String number = call.getString("number", "").trim();
+        String message = call.getString("message", "").trim();
+        String digits = number.replaceAll("[^0-9]", "");
+        if (digits.length() < 7 || digits.length() > 15 || message.isEmpty() || message.length() > 4000) {
+            call.reject("फोन नंबर किंवा मेसेज योग्य नाही.");
+            return;
+        }
+        if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
+            requestPermissionForAlias("sms", call, "smsPermissionCallback");
+            return;
+        }
+        sendSmsNow(call, number, message);
+    }
+
+    @PermissionCallback
+    private void smsPermissionCallback(PluginCall call) {
+        if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
+            call.reject("SMS पाठवण्याची Android परवानगी दिलेली नाही.");
+            return;
+        }
+        sendSmsNow(call, call.getString("number", "").trim(), call.getString("message", "").trim());
+    }
+
+    private void sendSmsNow(PluginCall call, String number, String message) {
+        try {
+            android.telephony.SmsManager smsManager = android.telephony.SmsManager.getDefault();
+            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            if (parts.size() > 1) {
+                smsManager.sendMultipartTextMessage(number, null, parts, null, null);
+            } else {
+                smsManager.sendTextMessage(number, null, message, null, null);
+            }
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "SMS पाठवण्याची विनंती मोबाईल नेटवर्ककडे दिली आहे.");
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("SMS पाठवता आला नाही. SIM, नेटवर्क आणि SMS परवानगी तपासा.", error);
+        }
+    }
+
     // Opens a user-visible composer only after SHIVAM has confirmed the
     // recipient and exact message. The user completes the final Send action.
     @PluginMethod
