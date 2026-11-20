@@ -49,6 +49,7 @@ public class ScreenUnderstandingPlugin extends Plugin {
     private final StringBuilder pdfText = new StringBuilder();
     private int pdfPageIndex = 0;
     private int pdfPageCount = 0;
+    private int pdfTotalPageCount = 0;
 
     @PluginMethod
     public void captureAndReadScreen(PluginCall call) {
@@ -133,7 +134,8 @@ public class ScreenUnderstandingPlugin extends Plugin {
             pdfDescriptor = getContext().getContentResolver().openFileDescriptor(uri, "r");
             if (pdfDescriptor == null) throw new IllegalStateException("PDF फाइल उघडता आली नाही.");
             pdfRenderer = new PdfRenderer(pdfDescriptor);
-            pdfPageCount = Math.min(pdfRenderer.getPageCount(), 10);
+            pdfTotalPageCount = pdfRenderer.getPageCount();
+            pdfPageCount = Math.min(pdfTotalPageCount, 10);
             if (pdfPageCount == 0) throw new IllegalStateException("PDF मध्ये पृष्ठे नाहीत.");
             pdfPageIndex = 0;
             pdfText.setLength(0);
@@ -164,7 +166,7 @@ public class ScreenUnderstandingPlugin extends Plugin {
             response.put("text", result);
             response.put("message", "PDF मधील मजकूर वाचला.");
             response.put("pagesRead", pdfPageCount);
-            response.put("totalPages", pdfRendererPageCountSafe());
+            response.put("totalPages", pdfTotalPageCount);
             call.resolve(response);
             return;
         }
@@ -206,10 +208,6 @@ public class ScreenUnderstandingPlugin extends Plugin {
         }
     }
 
-    private int pdfRendererPageCountSafe() {
-        return pdfRenderer == null ? pdfPageCount : pdfRenderer.getPageCount();
-    }
-
     private void closePdfResources() {
         if (pdfDevanagariRecognizer != null) { pdfDevanagariRecognizer.close(); pdfDevanagariRecognizer = null; }
         if (pdfLatinRecognizer != null) { pdfLatinRecognizer.close(); pdfLatinRecognizer = null; }
@@ -236,7 +234,7 @@ public class ScreenUnderstandingPlugin extends Plugin {
                         StringBuilder description = new StringBuilder();
                         for (ImageLabel label : labels) {
                             if (label.getConfidence() >= 0.45f) {
-                                if (description.length() > 0) description.append("\\n");
+                                if (description.length() > 0) description.append("\n");
                                 description.append(label.getText()).append(" (")
                                         .append(Math.round(label.getConfidence() * 100)).append("%)");
                             }
