@@ -16,12 +16,16 @@ import {
   Trophy,
   ExternalLink,
   ScanEye,
+  ImagePlus,
   Loader2,
 } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
 import { apiFetch } from '../../lib/api';
 
-interface ScreenUnderstandingApi { captureAndReadScreen(): Promise<{ text: string; message: string }>; }
+interface ScreenUnderstandingApi {
+  captureAndReadScreen(): Promise<{ text: string; message: string }>;
+  pickImageAndRead(): Promise<{ text: string; message: string }>;
+}
 const ScreenUnderstanding = registerPlugin<ScreenUnderstandingApi>('ScreenUnderstanding');
 
 interface EnergyData {
@@ -66,6 +70,21 @@ export function SystemPanel() {
       toast.success('स्क्रीनवरील मजकूर वाचला.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'स्क्रीन वाचता आली नाही.');
+    } finally {
+      setScreenBusy(false);
+    }
+  }, [isAndroid, screenBusy]);
+
+  const readImage = useCallback(async () => {
+    if (!isAndroid || screenBusy) return;
+    setScreenBusy(true);
+    setScreenText('');
+    try {
+      const result = await ScreenUnderstanding.pickImageAndRead();
+      setScreenText(result.text || 'फोटोमध्ये वाचता येण्याजोगा मजकूर आढळला नाही.');
+      toast.success('फोटोवरील मजकूर वाचला.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'फोटो वाचता आला नाही.');
     } finally {
       setScreenBusy(false);
     }
@@ -187,8 +206,18 @@ export function SystemPanel() {
             {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
             {screenBusy ? 'स्क्रीन वाचत आहे…' : 'स्क्रीन वाचा'}
           </button>
+          <button
+            type="button"
+            onClick={readImage}
+            disabled={!isAndroid || screenBusy}
+            className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium disabled:opacity-50"
+            style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+          >
+            {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+            {screenBusy ? 'फोटो वाचत आहे…' : 'फोटोमधील मजकूर वाचा'}
+          </button>
           <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            Android ची परवानगी घेतल्यानंतरच स्क्रीनचा मजकूर वाचला जाईल.
+            स्क्रीन वाचण्यासाठी Android परवानगी लागेल. फोटोतील मराठी आणि इंग्रजी मजकूर फोनवरच वाचला जातो.
           </p>
           {screenText && (
             <div className="mt-2 rounded-lg p-2.5 text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
