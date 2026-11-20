@@ -1,25 +1,201 @@
 package com.openjarvis.app;
-import android.app.*;
-import android.content.*;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
-import android.os.*;
-import android.speech.*;
-import java.util.*;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+
+import java.util.ArrayList;
+import java.util.Locale;
+
 public class ShivamWakeWordService extends Service {
- public static final String ACTION_START="com.openjarvis.app.WAKE_START";
- private static final String CHANNEL="shivam_wake_word"; private static final int ID=7402;
- private final Handler handler=new Handler(Looper.getMainLooper()); private SpeechRecognizer recognizer; private boolean active=false,launching=false;
- public void onCreate(){super.onCreate(); if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel(CHANNEL,"SHIVAM Wake Word",NotificationManager.IMPORTANCE_LOW);c.setDescription("Visible microphone notification while SHIVAM listens.");((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(c);}}
- public int onStartCommand(Intent i,int flags,int id){if(i==null||ACTION_START.equals(i.getAction())){if(!active){startForegroundNow();active=true;listen();}}return START_STICKY;}
- private void startForegroundNow(){Intent open=new Intent(this,MainActivity.class);open.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);PendingIntent pi=PendingIntent.getActivity(this,ID,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);Notification n=new Notification.Builder(this,CHANNEL).setContentTitle("SHIVAM आवाज ऐकत आहे").setContentText("“Shivam” म्हणा. बंद करण्यासाठी अॅपमधील सेवा बंद करा.").setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentIntent(pi).setOngoing(true).build();if(Build.VERSION.SDK_INT>=29)startForeground(ID,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);else startForeground(ID,n);}
- private void listen(){if(!active||launching)return;if(!SpeechRecognizer.isRecognitionAvailable(this)){handler.postDelayed(this::listen,5000);return;}try{if(recognizer!=null)recognizer.destroy();recognizer=SpeechRecognizer.createSpeechRecognizer(this);recognizer.setRecognitionListener(new RecognitionListener(){
- public void onReadyForSpeech(Bundle b){} public void onBeginningOfSpeech(){} public void onRmsChanged(float f){} public void onBufferReceived(byte[] b){} public void onEndOfSpeech(){}
- public void onError(int e){restart();}
- public void onResults(Bundle b){ArrayList<String>a=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(a!=null)for(String s:a){String v=s==null?"":s.toLowerCase(Locale.ROOT);if(v.contains("shivam")||v.contains("शिवम")||v.contains("शिवम्")||v.contains("शिवाम")){wake();return;}}restart();}
- public void onPartialResults(Bundle b){} public void onEvent(int e,Bundle b){}
- });Intent q=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);q.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);q.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"mr-IN");q.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"mr-IN");q.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);q.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,4);recognizer.startListening(q);}catch(Exception e){restart();}}
- private void restart(){if(active&&!launching)handler.postDelayed(this::listen,1300);}
- private void wake(){if(launching)return;launching=true;active=false;try{if(recognizer!=null)recognizer.cancel();}catch(Exception ignored){}Intent i=new Intent(this,MainActivity.class);i.setAction("com.openjarvis.app.SHIVAM_WAKE");i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);startActivity(i);stopForeground(true);stopSelf();}
- public void onDestroy(){active=false;handler.removeCallbacksAndMessages(null);if(recognizer!=null){try{recognizer.destroy();}catch(Exception ignored){}recognizer=null;}super.onDestroy();}
- public IBinder onBind(Intent i){return null;}
+    public static final String ACTION_START = "com.openjarvis.app.WAKE_START";
+    private static final String CHANNEL = "shivam_wake_word";
+    private static final int NOTIFICATION_ID = 7402;
+    private static final long RETRY_DELAY_MS = 1800L;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean active = false;
+    private boolean launching = false;
+    private SpeechRecognizer recognizer;
+
+    private final Runnable restartListening = () -> {
+        if (active && !launching) listen();
+    };
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL, "SHIVAM Wake Word", NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("Visible microphone notification while SHIVAM listens.");
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) manager.createNotificationChannel(channel);
+        }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null || ACTION_START.equals(intent.getAction())) {
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                    != PackageManager.PERMISSION_GRANTED) {
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+            if (!active) {
+                try {
+                    startForegroundNow();
+                    active = true;
+                    listen();
+                } catch (SecurityException | IllegalStateException error) {
+                    active = false;
+                    stopSelf();
+                    return START_NOT_STICKY;
+                }
+            }
+        }
+        return START_STICKY;
+    }
+
+    private void startForegroundNow() {
+        Intent open = new Intent(this, MainActivity.class);
+        open.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, NOTIFICATION_ID, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification notification = new Notification.Builder(this, CHANNEL)
+                .setContentTitle("SHIVAM आवाज ऐकत आहे")
+                .setContentText("“Shivam” म्हणा. बंद करण्यासाठी अॅपमधील सेवा बंद करा.")
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private void listen() {
+        if (!active || launching) return;
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            stopSelf();
+            return;
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            scheduleRestart();
+            return;
+        }
+
+        destroyRecognizer();
+        try {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+            recognizer.setRecognitionListener(new RecognitionListener() {
+                @Override public void onReadyForSpeech(android.os.Bundle params) {}
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onPartialResults(android.os.Bundle partialResults) {}
+                @Override public void onEvent(int eventType, android.os.Bundle params) {}
+
+                @Override
+                public void onError(int error) {
+                    scheduleRestart();
+                }
+
+                @Override
+                public void onResults(android.os.Bundle results) {
+                    ArrayList<String> matches = results.getStringArrayList(
+                            SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (matches != null) {
+                        for (String match : matches) {
+                            String value = match == null ? "" : match.toLowerCase(Locale.ROOT);
+                            if (value.contains("shivam") || value.contains("शिवम")
+                                    || value.contains("शिवम्") || value.contains("शिवाम")) {
+                                wake();
+                                return;
+                            }
+                        }
+                    }
+                    scheduleRestart();
+                }
+            });
+
+            Intent request = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "mr-IN");
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "mr-IN");
+            request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4);
+            recognizer.startListening(request);
+        } catch (Exception error) {
+            scheduleRestart();
+        }
+    }
+
+    private void scheduleRestart() {
+        if (!active || launching) return;
+        handler.removeCallbacks(restartListening);
+        handler.postDelayed(restartListening, RETRY_DELAY_MS);
+    }
+
+    private void wake() {
+        if (launching) return;
+        launching = true;
+        active = false;
+        handler.removeCallbacksAndMessages(null);
+        destroyRecognizer();
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setAction("com.openjarvis.app.SHIVAM_WAKE");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try {
+            startActivity(intent);
+        } catch (Exception ignored) {
+            // The ongoing notification remains available as a manual way back into SHIVAM.
+        }
+        stopForeground(true);
+        stopSelf();
+    }
+
+    private void destroyRecognizer() {
+        SpeechRecognizer current = recognizer;
+        recognizer = null;
+        if (current != null) {
+            try { current.cancel(); } catch (Exception ignored) {}
+            try { current.destroy(); } catch (Exception ignored) {}
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        active = false;
+        handler.removeCallbacksAndMessages(null);
+        destroyRecognizer();
+        super.onDestroy();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
 }
