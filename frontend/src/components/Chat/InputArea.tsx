@@ -105,6 +105,18 @@ function useResearchCorpusSync(enabled: boolean): {
 
 export function InputArea() {
   const [input, setInput] = useState('');
+
+  useEffect(() => {
+    const insertScreenText = (event: Event) => {
+      const text = (event as CustomEvent<string>).detail;
+      if (typeof text === 'string' && text.trim()) {
+        setInput((current) => current ? current + '\n\n' + text.trim() : text.trim());
+        toast.success('स्क्रीनवरील मजकूर चॅटमध्ये आणला.');
+      }
+    };
+    window.addEventListener('shivamInsertScreenText', insertScreenText);
+    return () => window.removeEventListener('shivamInsertScreenText', insertScreenText);
+  }, []);
   const sendVoiceCommandRef = useRef<(command: string) => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
