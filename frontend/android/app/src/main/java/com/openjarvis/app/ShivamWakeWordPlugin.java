@@ -134,6 +134,14 @@ public class ShivamWakeWordPlugin extends Plugin {
             request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "mr-IN");
             request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "mr-IN");
             request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            if (Build.VERSION.SDK_INT >= 33) {
+                request.putExtra(RecognizerIntent.EXTRA_BIASING_STRINGS,
+                        new ArrayList<>(java.util.Arrays.asList(
+                                "शिवम", "SHIVAM", "कॉल", "फोन", "व्हॉट्सॲप",
+                                "यूट्यूब", "मेसेज", "हवामान", "बदनेरा", "अमरावती",
+                                "श्रिरामपूर", "रिमाइंडर", "आठवण", "बॅटरी"
+                        )));
+            }
             request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
             commandRecognizer.startListening(request);
         } catch (Exception e) {
