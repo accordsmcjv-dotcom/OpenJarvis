@@ -1933,6 +1933,33 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "API endpoint not found"})
 
     def do_POST(self):
+        if self.path == "/v1/converter/convert":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if length <= 0 or length > 150000:
+                    self.send_json(400, {"error": "रूपांतरणासाठी फाइलचा मजकूर 100 KB पेक्षा कमी असावा."})
+                    return
+                data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict):
+                    raise ValueError("रूपांतरण विनंती अवैध आहे.")
+                fmt = data.get("format")
+                title = data.get("title", "")
+                filename = data.get("filename", "")
+                source_text = data.get("content", "")
+                if fmt not in ("word", "excel") or not isinstance(source_text, str):
+                    raise ValueError("फाइलचा प्रकार किंवा मजकूर अवैध आहे.")
+                if fmt == "word":
+                    arguments = {"format": "word", "title": title, "filename": filename, "content": source_text}
+                else:
+                    if not source_text.strip():
+                        raise ValueError("CSV फाइल रिकामी आहे.")
+                    arguments = {"format": "excel", "title": title, "filename": filename, "content": source_text}
+                result = create_document_file(arguments)
+                self.send_json(201, result)
+            except Exception as exc:
+                self.send_json(400, {"error": str(exc)[:220] or "फाइल रूपांतरित करता आली नाही."})
+            return
+
         if self.path == "/v1/tools/web_search/credentials":
             try:
                 length = int(self.headers.get("Content-Length", 0))
