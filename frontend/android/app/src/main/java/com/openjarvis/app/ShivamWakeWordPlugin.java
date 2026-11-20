@@ -115,7 +115,11 @@ public class ShivamWakeWordPlugin extends Plugin {
                 @Override
                 public void onError(int error) {
                     if (preferOnDevice && activeCommandCall == call) {
-                        releaseCommandRecognizer();
+                        SpeechRecognizer failed = commandRecognizer;
+                        commandRecognizer = null;
+                        if (failed != null) {
+                            try { failed.destroy(); } catch (Exception ignored) {}
+                        }
                         startCommandRecognition(call, false);
                         return;
                     }
@@ -133,10 +137,15 @@ public class ShivamWakeWordPlugin extends Plugin {
             request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
             commandRecognizer.startListening(request);
         } catch (Exception e) {
-            releaseCommandRecognizer();
             if (preferOnDevice && activeCommandCall == call) {
+                SpeechRecognizer failed = commandRecognizer;
+                commandRecognizer = null;
+                if (failed != null) {
+                    try { failed.destroy(); } catch (Exception ignored) {}
+                }
                 startCommandRecognition(call, false);
             } else {
+                releaseCommandRecognizer();
                 call.reject("मराठी आवाज ओळख सुरू करता आली नाही: " + e.getMessage());
             }
         }
