@@ -6,6 +6,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.pdf.PdfRenderer;
+import android.os.ParcelFileDescriptor;
 import com.google.mlkit.vision.label.ImageLabel;
 import com.google.mlkit.vision.label.ImageLabeler;
 import com.google.mlkit.vision.label.ImageLabeling;
@@ -38,6 +42,13 @@ public class ScreenUnderstandingPlugin extends Plugin {
     private TextRecognizer imageDevanagariRecognizer;
     private TextRecognizer imageLatinRecognizer;
     private ImageLabeler imageLabeler;
+    private PdfRenderer pdfRenderer;
+    private ParcelFileDescriptor pdfDescriptor;
+    private TextRecognizer pdfDevanagariRecognizer;
+    private TextRecognizer pdfLatinRecognizer;
+    private final StringBuilder pdfText = new StringBuilder();
+    private int pdfPageIndex = 0;
+    private int pdfPageCount = 0;
 
     @PluginMethod
     public void captureAndReadScreen(PluginCall call) {
@@ -89,6 +100,121 @@ public class ScreenUnderstandingPlugin extends Plugin {
             pendingCall = null;
             call.reject("फोटो निवडता आला नाही: " + e.getMessage());
         }
+    }
+
+    @PluginMethod
+    public void pickPdfAndRead(PluginCall call) {
+        if (pendingCall != null) {
+            call.reject("दुसरी वाचन विनंती आधीच सुरू आहे.");
+            return;
+        }
+        pendingCall = call;
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("application/pdf");
+        try {
+            startActivityForResult(call, picker, "pdfDocumentResult");
+        } catch (Exception e) {
+            pendingCall = null;
+            call.reject("PDF निवडता आला नाही: " + e.getMessage());
+        }
+    }
+
+    @ActivityCallback
+    private void pdfDocumentResult(PluginCall call, ActivityResult result) {
+        if (pendingCall == null) return;
+        if (result == null || result.getResultCode() != android.app.Activity.RESULT_OK
+                || result.getData() == null || result.getData().getData() == null) {
+            finishWithError("PDF निवडणे रद्द केले.");
+            return;
+        }
+        try {
+            Uri uri = result.getData().getData();
+            pdfDescriptor = getContext().getContentResolver().openFileDescriptor(uri, "r");
+            if (pdfDescriptor == null) throw new IllegalStateException("PDF फाइल उघडता आली नाही.");
+            pdfRenderer = new PdfRenderer(pdfDescriptor);
+            pdfPageCount = Math.min(pdfRenderer.getPageCount(), 10);
+            if (pdfPageCount == 0) throw new IllegalStateException("PDF मध्ये पृष्ठे नाहीत.");
+            pdfPageIndex = 0;
+            pdfText.setLength(0);
+            pdfDevanagariRecognizer = TextRecognition.getClient(
+                    new DevanagariTextRecognizerOptions.Builder().build());
+            pdfLatinRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+            timeout = () -> finishWithError("PDF वाचण्यासाठी वेळ लागला. लहान PDF पुन्हा निवडा.");
+            handler.postDelayed(timeout, 90000);
+            readNextPdfPage();
+        } catch (Exception e) {
+            finishWithError("PDF वाचता आला नाही: " + e.getMessage());
+        }
+    }
+
+    private void readNextPdfPage() {
+        if (pendingCall == null || pdfRenderer == null) return;
+        if (pdfPageIndex >= pdfPageCount) {
+            if (timeout != null) handler.removeCallbacks(timeout);
+            String result = pdfText.toString().trim();
+            closePdfResources();
+            PluginCall call = pendingCall;
+            pendingCall = null;
+            if (result.isEmpty()) {
+                call.reject("PDF मधून वाचता येण्याजोगा मजकूर मिळाला नाही.");
+                return;
+            }
+            JSObject response = new JSObject();
+            response.put("text", result);
+            response.put("message", "PDF मधील मजकूर वाचला.");
+            response.put("pagesRead", pdfPageCount);
+            response.put("totalPages", pdfRendererPageCountSafe());
+            call.resolve(response);
+            return;
+        }
+        PdfRenderer.Page page = null;
+        try {
+            page = pdfRenderer.openPage(pdfPageIndex);
+            int width = Math.max(1, Math.min(page.getWidth(), 1600));
+            int height = Math.max(1, Math.min(page.getHeight(), 2200));
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            bitmap.eraseColor(Color.WHITE);
+            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            page.close();
+            final int currentPage = pdfPageIndex + 1;
+            final Bitmap pageBitmap = bitmap;
+            final String[] devanagari = {""};
+            final String[] latin = {""};
+            final int[] completed = {0};
+            Runnable finishPage = () -> {
+                completed[0]++;
+                if (completed[0] != 2) return;
+                if (pdfText.length() > 0) pdfText.append("\n\n");
+                pdfText.append("पृष्ठ ").append(currentPage).append("\n");
+                if (!devanagari[0].isEmpty()) pdfText.append(devanagari[0]).append("\n");
+                if (!latin[0].isEmpty() && !latin[0].equals(devanagari[0])) pdfText.append(latin[0]);
+                pageBitmap.recycle();
+                pdfPageIndex++;
+                readNextPdfPage();
+            };
+            InputImage input = InputImage.fromBitmap(pageBitmap, 0);
+            pdfDevanagariRecognizer.process(input)
+                    .addOnSuccessListener(value -> devanagari[0] = value.getText())
+                    .addOnCompleteListener(task -> finishPage.run());
+            pdfLatinRecognizer.process(input)
+                    .addOnSuccessListener(value -> latin[0] = value.getText())
+                    .addOnCompleteListener(task -> finishPage.run());
+        } catch (Exception e) {
+            if (page != null) page.close();
+            finishWithError("PDF पृष्ठ वाचताना त्रुटी: " + e.getMessage());
+        }
+    }
+
+    private int pdfRendererPageCountSafe() {
+        return pdfRenderer == null ? pdfPageCount : pdfRenderer.getPageCount();
+    }
+
+    private void closePdfResources() {
+        if (pdfDevanagariRecognizer != null) { pdfDevanagariRecognizer.close(); pdfDevanagariRecognizer = null; }
+        if (pdfLatinRecognizer != null) { pdfLatinRecognizer.close(); pdfLatinRecognizer = null; }
+        if (pdfRenderer != null) { try { pdfRenderer.close(); } catch (Exception ignored) {} pdfRenderer = null; }
+        if (pdfDescriptor != null) { try { pdfDescriptor.close(); } catch (Exception ignored) {} pdfDescriptor = null; }
     }
 
     @ActivityCallback
@@ -233,13 +359,19 @@ public class ScreenUnderstandingPlugin extends Plugin {
         else getContext().registerReceiver(resultReceiver, filter);
     }
 
-    private void closeImageLabeler() {\n        if (imageLabeler != null) { imageLabeler.close(); imageLabeler = null; }\n    }\n\n    private void closeImageRecognizers() {
+    private void closeImageLabeler() {
+        if (imageLabeler != null) { imageLabeler.close(); imageLabeler = null; }
+    }
+
+    private void closeImageRecognizers() {
         if (imageDevanagariRecognizer != null) { imageDevanagariRecognizer.close(); imageDevanagariRecognizer = null; }
         if (imageLatinRecognizer != null) { imageLatinRecognizer.close(); imageLatinRecognizer = null; }
     }
 
     private void finishWithError(String message) {
         closeImageRecognizers();
+        closeImageLabeler();
+        closePdfResources();
         if (timeout != null) handler.removeCallbacks(timeout);
         try {
             getContext().stopService(new Intent(getContext(), ShivamScreenCaptureService.class));
@@ -262,6 +394,8 @@ public class ScreenUnderstandingPlugin extends Plugin {
         if (timeout != null) handler.removeCallbacks(timeout);
         unregisterResultReceiver();
         closeImageRecognizers();
+        closeImageLabeler();
+        closePdfResources();
         if (pendingCall != null) {
             pendingCall.reject("SHIVAM बंद झाले.");
             pendingCall = null;
