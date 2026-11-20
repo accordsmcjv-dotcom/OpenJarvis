@@ -2674,6 +2674,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 "list_memory_backups", "list_notes", "search_notes"
                             }
                             for follow_index, follow_call in enumerate(next_calls):
+                                follow_args = {}
                                 follow_name = follow_call.get("function", {}).get("name", "")
                                 try:
                                     follow_args = json.loads(follow_call.get("function", {}).get("arguments") or "{}")
@@ -2718,16 +2719,16 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                     print("[SHIVAM FOLLOW-UP TOOL ERROR]", follow_name, type(follow_error).__name__)
                                     follow_result = {"error": "पुढील Tool टप्पा पूर्ण करता आला नाही."}
 
-                                self.wfile.write(("event: tool_call_start\\ndata: " + json.dumps({
+                                self.wfile.write(("event: tool_call_start\ndata: " + json.dumps({
                                     "tool": follow_name, "arguments": follow_args if "follow_args" in locals() else {}
-                                }, ensure_ascii=False) + "\\n\\n").encode("utf-8"))
+                                }, ensure_ascii=False) + "\n\n").encode("utf-8"))
                                 self.wfile.flush()
-                                self.wfile.write(("event: tool_call_end\\ndata: " + json.dumps({
+                                self.wfile.write(("event: tool_call_end\ndata: " + json.dumps({
                                     "tool": follow_name,
                                     "success": "error" not in follow_result and follow_result.get("success") is not False,
                                     "status": "success" if "error" not in follow_result and follow_result.get("success") is not False else "error",
                                     "result": follow_result
-                                }, ensure_ascii=False) + "\\n\\n").encode("utf-8"))
+                                }, ensure_ascii=False) + "\n\n").encode("utf-8"))
                                 self.wfile.flush()
                                 messages.append({
                                     "role": "tool",
