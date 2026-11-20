@@ -8,6 +8,13 @@ import { shouldAutoplayFinishedReply, useTtsStore } from '../../lib/tts';
 import { stripThinkTags } from '../../lib/message-text';
 import { PanelRightOpen, PanelRightClose, Database, MessageSquare, X } from 'lucide-react';
 import { listConnectors } from '../../lib/connectors-api';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+interface ShivamLocationPlugin {
+  getCurrentLocation(): Promise<{ latitude: number; longitude: number; accuracy: number }>;
+}
+
+const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -60,25 +67,37 @@ export function ChatArea() {
   const [weatherSummary, setWeatherSummary] = useState('LOADING');
   const [weatherBusy, setWeatherBusy] = useState(false);
 
-  const requestCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationMessage('या डिव्हाइसवर Location उपलब्ध नाही');
-      return;
-    }
+  const requestCurrentLocation = async () => {
     setLocationBusy(true);
     setLocationMessage('स्थान मिळवत आहे…');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Native Android plugin requests runtime permission only after the user taps this button.
+        const position = await ShivamLocation.getCurrentLocation();
+        setWeatherLocation({ name: 'MY LOCATION', lat: position.latitude, lon: position.longitude });
+      } else {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('या डिव्हाइसवर Location उपलब्ध नाही'));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 5 * 60 * 1000,
+          });
+        });
         setWeatherLocation({ name: 'MY LOCATION', lat: position.coords.latitude, lon: position.coords.longitude });
-        setLocationBusy(false);
-        setLocationMessage('सध्याचे स्थान वापरत आहे');
-      },
-      (error) => {
-        setLocationBusy(false);
-        setLocationMessage(error.code === error.PERMISSION_DENIED ? 'Location परवानगी नाकारली. शहर निवडा.' : 'स्थान मिळाले नाही. पुन्हा प्रयत्न करा.');
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
-    );
+      }
+      setLocationMessage('सध्याचे स्थान वापरत आहे');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setLocationMessage(/denied|permission|परवानगी/i.test(message)
+        ? 'Location परवानगी नाकारली. फोनच्या Settings मधून परवानगी द्या किंवा शहर निवडा.'
+        : (message || 'स्थान मिळाले नाही. पुन्हा प्रयत्न करा.'));
+    } finally {
+      setLocationBusy(false);
+    }
   };
 
   useEffect(() => {
