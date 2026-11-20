@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { toast } from 'sonner';
 import {
   Zap,
   Activity,
@@ -13,9 +15,14 @@ import {
   X,
   Trophy,
   ExternalLink,
+  ScanEye,
+  Loader2,
 } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
 import { getBase } from '../../lib/api';
+
+interface ScreenUnderstandingApi { captureAndReadScreen(): Promise<{ text: string; message: string }>; }
+const ScreenUnderstanding = registerPlugin<ScreenUnderstandingApi>('ScreenUnderstanding');
 
 interface EnergyData {
   total_energy_j?: number;
@@ -45,6 +52,24 @@ export function SystemPanel() {
   const [energy, setEnergy] = useState<EnergyData | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryStats | null>(null);
   const [voiceStatus, setVoiceStatus] = useState<'listening' | 'capturing' | 'thinking' | 'off'>('off');
+  const [screenBusy, setScreenBusy] = useState(false);
+  const [screenText, setScreenText] = useState('');
+  const isAndroid = Capacitor.getPlatform() === 'android';
+
+  const readScreen = useCallback(async () => {
+    if (!isAndroid || screenBusy) return;
+    setScreenBusy(true);
+    setScreenText('');
+    try {
+      const result = await ScreenUnderstanding.captureAndReadScreen();
+      setScreenText(result.text || 'स्क्रीनवर वाचता येण्याजोगा मजकूर आढळला नाही.');
+      toast.success('स्क्रीनवरील मजकूर वाचला.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'स्क्रीन वाचता आली नाही.');
+    } finally {
+      setScreenBusy(false);
+    }
+  }, [isAndroid, screenBusy]);
 
   useEffect(() => {
     const handleVoiceStatus = (event: Event) => {
@@ -146,6 +171,34 @@ export function SystemPanel() {
             label="SHIVAM Voice"
             value={voiceStatusLabel}
           />
+        </section>
+
+        {/* Screen understanding */}
+        <section>
+          <h4 className="text-[11px] font-medium uppercase tracking-wide mb-2" style={{ color: 'var(--color-text-tertiary)' }}>
+            स्क्रीन समजून घेणे
+          </h4>
+          <button
+            type="button"
+            onClick={readScreen}
+            disabled={!isAndroid || screenBusy}
+            className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium disabled:opacity-50"
+            style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-border)' }}
+          >
+            {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+            {screenBusy ? 'स्क्रीन वाचत आहे…' : 'स्क्रीन वाचा'}
+          </button>
+          <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-tertiary)' }}>
+            Android ची परवानगी घेतल्यानंतरच स्क्रीनचा मजकूर वाचला जाईल.
+          </p>
+          {screenText && (
+            <div className="mt-2 rounded-lg p-2.5 text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
+              {screenText}
+              <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('shivamInsertScreenText', { detail: screenText }))} className="block mt-2 font-semibold" style={{ color: 'var(--color-accent)' }}>
+                हा मजकूर चॅटमध्ये आणा
+              </button>
+            </div>
+          )}
         </section>
 
         {/* Device */}
