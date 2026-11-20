@@ -19,6 +19,8 @@ import { OptInModal } from './components/OptInModal';
 import { UpdateChecker } from './components/Desktop/UpdateChecker';
 import { track, hashId } from './lib/analytics';
 import { offerAnalyticsChoice } from './lib/analytics-invitation';
+import { SiteRemindersPage } from './pages/SiteRemindersPage';
+import { useTtsStore } from './lib/tts';
 
 export default function App() {
   const [setupDone, setSetupDone] = useState(!isTauri());
@@ -219,6 +221,24 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
+  // Read today's site tasks aloud once when SHIVAM opens each day.
+  useEffect(() => {
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const marker = `shivam-site-reminders-announced-${day}`;
+    if (localStorage.getItem(marker)) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('shivam-site-reminders-v1') || '[]');
+      if (!Array.isArray(saved)) return;
+      const due = saved.filter((item: { date?: string; done?: boolean }) => !item.done && typeof item.date === 'string' && item.date <= day);
+      if (!due.length) return;
+      const speech = 'आजची आणि बाकी राहिलेली साइटची कामे. ' + due.map((item: { title?: string; site?: string }, index: number) => `${index + 1}. ${item.site ? item.site + ' येथे, ' : ''}${item.title || 'काम'}.`).join(' ');
+      localStorage.setItem(marker, '1');
+      const timer = window.setTimeout(() => { void useTtsStore.getState().speak('site-reminders-auto-' + day, speech); }, 1800);
+      return () => window.clearTimeout(timer);
+    } catch { /* Ignore malformed local reminder data. */ }
+  }, []);
+
   const toggleSystemPanel = useAppStore((s) => s.toggleSystemPanel);
 
   // Global keyboard shortcuts
@@ -256,6 +276,7 @@ export default function App() {
           <Route path="logs" element={<LogsPage />} />
               <Route path="notes" element={<NotesPage />} />
           <Route path="photo-editor" element={<PhotoEditorPage />} />
+          <Route path="site-reminders" element={<SiteRemindersPage />} />
         </Route>
       </Routes>
       <Toaster position="bottom-right" />
