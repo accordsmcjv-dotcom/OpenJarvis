@@ -447,7 +447,7 @@ export function InputArea() {
       if (pendingMessage.stage === 'choose') {
         const matches = pendingMessage.contacts.filter((contact) =>
           contact.name.toLocaleLowerCase('mr-IN').includes(normalized)
-          || contact.number.replace(/\\D/g, '').endsWith(normalized.replace(/\\D/g, '')),
+          || contact.number.replace(/\D/g, '').endsWith(normalized.replace(/\D/g, '')),
         );
         if (matches.length !== 1) {
           speakCallReply(matches.length > 1 ? 'या नावाचे अनेक संपर्क आहेत. पूर्ण नाव किंवा क्रमांकाचा शेवट सांगा.' : 'कृपया संपर्काचे पूर्ण नाव सांगा.');
@@ -511,7 +511,7 @@ export function InputArea() {
       }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
-        .replace(/(^|\\s)(ला|ला$|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\\s|$)/g, ' ')
+        .replace(/(^|\\s)(ला|ला$|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=\s|$)/g, ' ')
         .replace(/\\s+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
@@ -974,6 +974,7 @@ export function InputArea() {
     temperature,
     maxTokens,
     pendingCall,
+    pendingMessage,
   ]);
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
