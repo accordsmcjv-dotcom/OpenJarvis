@@ -361,13 +361,27 @@ export function InputArea() {
         return;
       }
       if (pendingCall.stage === 'number') {
-        if (!isPhoneNumber) {
-          speakCallReply('कृपया १० अंकी मोबाईल नंबर स्पष्ट सांगा.');
+        if (isPhoneNumber) {
+          const selected = { name: 'या नंबरवर', number: spokenNumber };
+          setPendingCall({ stage: 'confirm', contacts: [], selected });
+          speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर कॉल करू का?`);
           return;
         }
-        const selected = { name: 'या नंबरवर', number: spokenNumber };
-        setPendingCall({ stage: 'confirm', contacts: [], selected });
-        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर कॉल करू का?`);
+        try {
+          const result = await findShivamContacts(content);
+          if (result.contacts.length === 1) {
+            const selected = result.contacts[0];
+            setPendingCall({ stage: 'confirm', contacts: result.contacts, selected });
+            speakCallReply(`शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
+          } else if (result.contacts.length > 1) {
+            setPendingCall({ stage: 'choose', contacts: result.contacts });
+            speakCallReply('या नावाचे अनेक संपर्क आहेत. पूर्ण नाव सांगा.');
+          } else {
+            speakCallReply('संपर्क सापडला नाही. कृपया नाव किंवा मोबाईल नंबर सांगा.');
+          }
+        } catch (error) {
+          speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत.');
+        }
         return;
       }
       if (pendingCall.stage === 'confirm') {
@@ -435,13 +449,27 @@ export function InputArea() {
         return;
       }
       if (pendingMessage.stage === 'number') {
-        if (!isPhoneNumber) {
-          speakCallReply('कृपया योग्य मोबाईल नंबर सांगा.');
+        if (isPhoneNumber) {
+          const selected = { name: 'या नंबरवर', number: spokenNumber };
+          setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
+          speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
           return;
         }
-        const selected = { name: 'या नंबरवर', number: spokenNumber };
-        setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
-        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        try {
+          const result = await findShivamContacts(content);
+          if (result.contacts.length === 1) {
+            const selected = result.contacts[0];
+            setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', contacts: result.contacts, selected });
+            speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+          } else if (result.contacts.length > 1) {
+            setPendingMessage({ ...pendingMessage, stage: 'choose', contacts: result.contacts });
+            speakCallReply('या नावाचे अनेक संपर्क आहेत. पूर्ण नाव सांगा.');
+          } else {
+            speakCallReply('संपर्क सापडला नाही. कृपया नाव किंवा मोबाईल नंबर सांगा.');
+          }
+        } catch (error) {
+          speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत.');
+        }
         return;
       }
       if (pendingMessage.stage === 'choose') {
@@ -515,7 +543,7 @@ export function InputArea() {
         .replace(/[ ]+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
-        speakCallReply(`शिवम विचारतोय, कोणत्या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? नंबर सांगा.`);
+        speakCallReply(`शिवम विचारतोय, कोणाला ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? संपर्काचे नाव किंवा नंबर सांगा.`);
         return;
       }
       try {
@@ -553,7 +581,7 @@ export function InputArea() {
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
         setPendingCall({ stage: 'number', contacts: [] });
-        speakCallReply('शिवम विचारतोय, कोणत्या नंबरवर कॉल करू? नंबर सांगा.');
+        speakCallReply('शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव किंवा नंबर सांगा.');
       } else {
         try {
           const result = await findShivamContacts(target);
