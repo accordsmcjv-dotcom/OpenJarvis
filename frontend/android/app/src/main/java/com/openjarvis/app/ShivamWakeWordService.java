@@ -24,6 +24,8 @@ public class ShivamWakeWordService extends Service {
     private static final String CHANNEL = "shivam_wake_word";
     private static final int NOTIFICATION_ID = 7402;
     private static final long RETRY_DELAY_MS = 1800L;
+    // Android speech sessions can stall without delivering onError/onResults.
+    private static final long LISTEN_TIMEOUT_MS = 12000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean active = false;
     private boolean launching = false;
@@ -31,6 +33,11 @@ public class ShivamWakeWordService extends Service {
 
     private final Runnable restartListening = () -> {
         if (active && !launching) listen();
+    };
+    private final Runnable listenTimeout = () -> {
+        if (!active || launching) return;
+        destroyRecognizer();
+        scheduleRestart();
     };
 
     @Override
@@ -118,11 +125,13 @@ public class ShivamWakeWordService extends Service {
 
                 @Override
                 public void onError(int error) {
+                    handler.removeCallbacks(listenTimeout);
                     scheduleRestart();
                 }
 
                 @Override
                 public void onResults(android.os.Bundle results) {
+                    handler.removeCallbacks(listenTimeout);
                     if (containsWakeWord(results)) {
                         wake();
                         return;
@@ -139,6 +148,8 @@ public class ShivamWakeWordService extends Service {
             request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
             request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4);
             recognizer.startListening(request);
+            handler.removeCallbacks(listenTimeout);
+            handler.postDelayed(listenTimeout, LISTEN_TIMEOUT_MS);
         } catch (Exception error) {
             scheduleRestart();
         }
@@ -150,11 +161,13 @@ public class ShivamWakeWordService extends Service {
                 SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches == null) return false;
         for (String match : matches) {
-            String value = match == null ? "" : match.toLowerCase(Locale.ROOT).trim();
-            if (value.contains("shivam") || value.contains("शिवम")
-                    || value.contains("शिवम्") || value.contains("शिवाम")
-                    || value.contains("शिवान")) {
-                return true;
+            String value = match == null ? "" : match.toLowerCase(Locale.ROOT)
+                    .replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+            // Match a complete spoken token, not an accidental substring in another word.
+            for (String token : value.split("\\s+")) {
+                if (token.equals("shivam") || token.equals("शिवम")
+                        || token.equals("शिवम्") || token.equals("शिवाम")
+                        || token.equals("शिवान")) return true;
             }
         }
         return false;
@@ -162,6 +175,7 @@ public class ShivamWakeWordService extends Service {
 
     private void scheduleRestart() {
         if (!active || launching) return;
+        handler.removeCallbacks(listenTimeout);
         handler.removeCallbacks(restartListening);
         handler.postDelayed(restartListening, RETRY_DELAY_MS);
     }
