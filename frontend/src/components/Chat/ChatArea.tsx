@@ -209,6 +209,8 @@ export function ChatArea() {
               <span className="shivam-meta-line" />
               <span>SHIVAM·01</span>
             </div>
+            <div className="shivam-hud-corner shivam-hud-corner-left" aria-hidden="true"><span>SYS ONLINE</span><b>01 / CORE</b></div>
+            <div className="shivam-hud-corner shivam-hud-corner-right" aria-hidden="true"><span>NEURAL LINK</span><b>SECURE</b></div>
             <div className="shivam-reactor" aria-hidden="true">
               <div className="shivam-reactor-ring shivam-ring-outer" />
               <div className="shivam-reactor-ring shivam-ring-mid" />
@@ -226,6 +228,11 @@ export function ChatArea() {
             <div className="shivam-subtitle">कृत्रिम बुद्धिमत्ता</div>
             <div className="shivam-voice-wave" aria-hidden="true">{Array.from({ length: 9 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 85}ms` }} />)}</div>
             <div className="shivam-ready"><span className="hud-heartbeat" /> {reactorLabel} <span>•</span> प्रणाली सज्ज</div>
+            <div className="shivam-glass-hud" aria-label="SHIVAM system status">
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">◈</span><span className="shivam-glass-label">CORE</span><b>ONLINE</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">VOICE</span><b>{reactorState === 'listening' ? 'ACTIVE' : 'READY'}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">⟡</span><span className="shivam-glass-label">LINK</span><b>SECURE</b></div>
+            </div>
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
             </h2>
