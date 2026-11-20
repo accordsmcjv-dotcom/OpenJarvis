@@ -16,6 +16,26 @@ import { registerPlugin } from '@capacitor/core';
 
 interface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }
 const ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
+
+type ShivamWakeStatus = 'listening' | 'capturing' | 'thinking' | 'off';
+function announceWakeStatus(status: ShivamWakeStatus) {
+  window.dispatchEvent(new CustomEvent('shivamWakeStatus', { detail: status }));
+}
+async function startWakeWordListening() {
+  try {
+    await ShivamWakeWord.startListening();
+    announceWakeStatus('listening');
+  } catch {
+    announceWakeStatus('off');
+  }
+}
+async function stopWakeWordListening() {
+  try {
+    await ShivamWakeWord.stopListening();
+  } finally {
+    announceWakeStatus('off');
+  }
+}
 import type {
   ChatMessage,
   MessageTelemetry,
@@ -160,6 +180,7 @@ export function InputArea() {
     const handleWake = async () => {
       if (!mounted || wakeInProgress) return;
       wakeInProgress = true;
+      announceWakeStatus('capturing');
       // Each wake-word event starts a fresh capture cycle. Without resetting
       // this flag, only the first "Shivam" event is accepted after mount.
       captureStarted = false;
@@ -180,19 +201,20 @@ export function InputArea() {
                 // A wake-word interaction is an explicit hands-free request:
                 // enable spoken replies and submit the captured command.
                 useAppStore.getState().updateSettings({ voiceOutputEnabled: true, voiceAutoplay: true });
+                announceWakeStatus('thinking');
                 toast.success('तुमचा प्रश्न समजला. SHIVAM उत्तर देत आहे.');
                 window.setTimeout(() => sendVoiceCommandRef.current(command), 250);
               }
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
             captureStarted = false;
             wakeInProgress = false;
-            if (!capturedCommand) void ShivamWakeWord.startListening().catch(() => {});
+            if (!capturedCommand) void startWakeWordListening();
           }, 7000);
         } catch {
           captureStarted = false;
           wakeInProgress = false;
           toast.error('मायक्रोफोन सुरू झाला नाही. परवानगी तपासा.');
-          void ShivamWakeWord.startListening().catch(() => {});
+          void startWakeWordListening();
         }
       };
       if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
@@ -205,7 +227,8 @@ export function InputArea() {
       } else { void capture(); }
     };
     const handleTtsFinished = () => {
-      if (mounted && speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
+      if (mounted && speechEnabled) void startWakeWordListening();
+      else announceWakeStatus('off');
     };
     window.addEventListener('shivamTtsFinished', handleTtsFinished);
     window.addEventListener('shivamWakeWord', handleWake);
@@ -216,10 +239,10 @@ export function InputArea() {
     if (speechEnabled) {
       // Give a cold-start wake event time to begin command capture before restarting the listener.
       wakeStartTimer = window.setTimeout(() => {
-        if (mounted && !captureStarted && !wakeInProgress) void ShivamWakeWord.startListening().catch(() => {});
+        if (mounted && !captureStarted && !wakeInProgress) void startWakeWordListening();
       }, 4500);
     } else {
-      void ShivamWakeWord.stopListening().catch(() => {});
+      void stopWakeWordListening();
     }
     return () => {
       mounted = false;
@@ -241,12 +264,12 @@ export function InputArea() {
         // Error is captured in useSpeech
       } finally {
         if (speechEnabled) {
-          void ShivamWakeWord.startListening().catch(() => {});
+          void startWakeWordListening();
         }
       }
     } else {
       // Avoid two Android SpeechRecognizer instances competing for the mic.
-      await ShivamWakeWord.stopListening().catch(() => {});
+      await stopWakeWordListening();
       await startRecording();
     }
   }, [speechState, speechEnabled, startRecording, stopRecording]);
