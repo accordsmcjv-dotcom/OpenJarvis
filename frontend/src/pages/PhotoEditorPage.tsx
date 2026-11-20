@@ -22,6 +22,7 @@ export function PhotoEditorPage() {
   const [overlaySize, setOverlaySize] = useState(42);
   const [overlayColor, setOverlayColor] = useState('#ffffff');
   const [overlayPosition, setOverlayPosition] = useState<'top' | 'center' | 'bottom'>('bottom');
+  const [sticker, setSticker] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -115,6 +116,18 @@ export function PhotoEditorPage() {
       });
       ctx.restore();
     }
+    if (sticker) {
+      ctx.save();
+      ctx.filter = 'none';
+      const stickerSize = Math.max(28, Math.round(Math.min(canvas.width, canvas.height) * 0.13));
+      ctx.font = `${stickerSize}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = stickerSize * 0.18;
+      ctx.fillText(sticker, canvas.width - stickerSize * 0.35, canvas.height - stickerSize * 0.35);
+      ctx.restore();
+    }
   }
 
   function choosePhoto(event: React.ChangeEvent<HTMLInputElement>) {
@@ -134,6 +147,7 @@ export function PhotoEditorPage() {
     setFilter('none');
     setOverlayText('');
     setOverlaySize(42);
+    setSticker('');
     setImageUrl(URL.createObjectURL(file));
     event.target.value = '';
   }
@@ -146,6 +160,7 @@ export function PhotoEditorPage() {
     setFilter('none');
     setOverlayText('');
     setOverlaySize(42);
+    setSticker('');
   }
 
   function savePhoto() {
@@ -260,6 +275,17 @@ export function PhotoEditorPage() {
                 <span className="flex justify-between text-xs"><span>मजकुराचा आकार</span><span>{overlaySize}</span></span>
                 <input type="range" min="20" max="90" value={overlaySize} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlaySize(Number(event.target.value))} className="w-full accent-cyan-500" />
               </label>
+            </section>
+
+            <section className="hud-panel space-y-3 p-4">
+              <div className="text-sm font-semibold">Sticker आणि Emoji</div>
+              <div className="grid grid-cols-5 gap-2">
+                {['❤️', '⭐', '🔥', '😍', '✨', '🌸', '🎉', '👍', '😎', '💯'].map((emoji) => (
+                  <button key={emoji} type="button" disabled={!imageUrl} onClick={() => setSticker((current) => current === emoji ? '' : emoji)} className={`${actionClass} text-xl`} style={{ ...controlStyle, outline: sticker === emoji ? '2px solid var(--color-accent)' : 'none' }} aria-label={`Sticker ${emoji}`}>{emoji}</button>
+                ))}
+              </div>
+              <button type="button" disabled={!imageUrl || !sticker} onClick={() => setSticker('')} className={actionClass} style={controlStyle}>Sticker काढा</button>
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>निवडलेला Sticker फोटोच्या खालच्या उजव्या कोपऱ्यात दिसेल.</p>
             </section>
 
             <section className="hud-panel space-y-3 p-4">
