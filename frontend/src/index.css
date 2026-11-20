@@ -898,3 +898,11 @@
 .shivam-weather-picker select:focus { border-color:rgba(91,230,255,.75); box-shadow:0 0 12px rgba(34,211,238,.16); }
 .shivam-weather-picker option { color:#d9f8ff; background:#071a2b; }
 @media (max-width:420px) { .shivam-weather-picker { margin-top:8px; } }
+
+
+/* SHIVAM seven-day weather strip */
+.shivam-weather-forecast { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; width:min(100%,620px); margin:10px auto 0; }
+.shivam-weather-day { min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 3px; border:1px solid rgba(91,213,255,.16); border-radius:8px; background:linear-gradient(155deg,rgba(15,76,110,.22),rgba(3,18,34,.38)); color:rgba(158,222,242,.66); font:8px var(--font-hud); }
+.shivam-weather-day b { color:#c9f5ff; font-size:11px; font-weight:600; }
+.shivam-weather-day small { color:rgba(93,201,255,.72); font-size:7px; white-space:nowrap; }
+@media (max-width:420px) { .shivam-weather-forecast { gap:3px; } .shivam-weather-day { padding:6px 1px; font-size:7px; } .shivam-weather-day b { font-size:10px; } }
