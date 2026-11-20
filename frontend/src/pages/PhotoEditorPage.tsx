@@ -27,6 +27,7 @@ export function PhotoEditorPage() {
   const [stickerPosition, setStickerPosition] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
   const [frameColor, setFrameColor] = useState('#ffffff');
   const [frameSize, setFrameSize] = useState(0);
+  const [vignette, setVignette] = useState(0);
   const [exportFormat, setExportFormat] = useState<'jpeg' | 'png'>('jpeg');
   const [exportQuality, setExportQuality] = useState(94);
   const [error, setError] = useState('');
@@ -43,7 +44,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize, vignette]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -85,6 +86,18 @@ export function PhotoEditorPage() {
     ctx.scale(flip ? -1 : 1, 1);
     ctx.drawImage(image, sx / scale, sy / scale, sw / scale, sh / scale, -sw / 2, -sh / 2, sw, sh);
     ctx.restore();
+    if (vignette > 0) {
+      ctx.save();
+      ctx.filter = 'none';
+      const radius = Math.max(canvas.width, canvas.height) * 0.78;
+      const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.18, canvas.width / 2, canvas.height / 2, radius);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(0.58, `rgba(0,0,0,${vignette / 100 * 0.18})`);
+      gradient.addColorStop(1, `rgba(0,0,0,${vignette / 100 * 0.68})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
     if (overlayText.trim()) {
       ctx.save();
       ctx.filter = 'none';
@@ -168,6 +181,7 @@ export function PhotoEditorPage() {
     setStickerPosition('bottom-right');
     setFrameSize(0);
     setFrameColor('#ffffff');
+    setVignette(0);
     setExportFormat('jpeg');
     setExportQuality(94);
     setImageUrl(URL.createObjectURL(file));
@@ -187,6 +201,7 @@ export function PhotoEditorPage() {
     setStickerPosition('bottom-right');
     setFrameSize(0);
     setFrameColor('#ffffff');
+    setVignette(0);
   }
 
   function savePhoto() {
@@ -328,6 +343,13 @@ export function PhotoEditorPage() {
               <button type="button" disabled={!imageUrl || !sticker} onClick={() => setSticker('')} className={actionClass} style={controlStyle}>Sticker काढा</button>
             </section>
 
+            <section className="hud-panel space-y-3 p-4">
+              <div className="text-sm font-semibold">Vignette Effect</div>
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>कडांचा गडदपणा</span><span>{vignette}%</span></span>
+                <input type="range" min="0" max="100" value={vignette} disabled={!imageUrl} onChange={(event) => setVignette(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
+            </section>
             <section className="hud-panel space-y-3 p-4">
               <div className="text-sm font-semibold">फोटो फ्रेम</div>
               <label className="flex items-center justify-between gap-3 text-xs">
