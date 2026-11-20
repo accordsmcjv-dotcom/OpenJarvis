@@ -3,6 +3,7 @@ package com.openjarvis.app;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.RecognitionListener;
@@ -75,53 +76,70 @@ public class ShivamWakeWordPlugin extends Plugin {
             }
             activeCommandCall = call;
             commandHandler.postDelayed(commandTimeout, 15000L);
-            try {
-                commandRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
-                commandRecognizer.setRecognitionListener(new RecognitionListener() {
-                    @Override public void onReadyForSpeech(Bundle params) {}
-                    @Override public void onBeginningOfSpeech() {}
-                    @Override public void onRmsChanged(float rmsdB) {}
-                    @Override public void onBufferReceived(byte[] buffer) {}
-                    @Override public void onEndOfSpeech() {}
-                    @Override public void onPartialResults(Bundle partialResults) {}
-                    @Override public void onEvent(int eventType, Bundle params) {}
+            startCommandRecognition(call,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                            && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext()));
+        });
+    }
 
-                    @Override
-                    public void onResults(Bundle results) {
-                        ArrayList<String> matches = results.getStringArrayList(
-                                SpeechRecognizer.RESULTS_RECOGNITION);
-                        String transcript = matches == null || matches.isEmpty()
-                                ? "" : matches.get(0).trim();
-                        releaseCommandRecognizer();
-                        if (transcript.isEmpty()) {
-                            call.reject("आवाज समजला नाही. पुन्हा प्रयत्न करा.");
-                            return;
-                        }
-                        JSObject response = new JSObject();
-                        response.put("text", transcript);
-                        call.resolve(response);
+    private void startCommandRecognition(PluginCall call, boolean preferOnDevice) {
+        try {
+            commandRecognizer = preferOnDevice
+                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
+                    : SpeechRecognizer.createSpeechRecognizer(getContext());
+            commandRecognizer.setRecognitionListener(new RecognitionListener() {
+                @Override public void onReadyForSpeech(Bundle params) {}
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onPartialResults(Bundle partialResults) {}
+                @Override public void onEvent(int eventType, Bundle params) {}
+
+                @Override
+                public void onResults(Bundle results) {
+                    ArrayList<String> matches = results.getStringArrayList(
+                            SpeechRecognizer.RESULTS_RECOGNITION);
+                    String transcript = matches == null || matches.isEmpty()
+                            ? "" : matches.get(0).trim();
+                    releaseCommandRecognizer();
+                    if (transcript.isEmpty()) {
+                        call.reject("आवाज समजला नाही. पुन्हा प्रयत्न करा.");
+                        return;
                     }
+                    JSObject response = new JSObject();
+                    response.put("text", transcript);
+                    call.resolve(response);
+                }
 
-                    @Override
-                    public void onError(int error) {
+                @Override
+                public void onError(int error) {
+                    if (preferOnDevice && activeCommandCall == call) {
                         releaseCommandRecognizer();
-                        call.reject("मराठी आवाज ओळखता आला नाही. त्रुटी क्रमांक: " + error);
+                        startCommandRecognition(call, false);
+                        return;
                     }
-                });
+                    releaseCommandRecognizer();
+                    call.reject("मराठी आवाज ओळखता आला नाही. त्रुटी क्रमांक: " + error);
+                }
+            });
 
-                Intent request = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "mr-IN");
-                request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "mr-IN");
-                request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
-                request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                commandRecognizer.startListening(request);
-            } catch (Exception e) {
-                releaseCommandRecognizer();
+            Intent request = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "mr-IN");
+            request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "mr-IN");
+            request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            commandRecognizer.startListening(request);
+        } catch (Exception e) {
+            releaseCommandRecognizer();
+            if (preferOnDevice && activeCommandCall == call) {
+                startCommandRecognition(call, false);
+            } else {
                 call.reject("मराठी आवाज ओळख सुरू करता आली नाही: " + e.getMessage());
             }
-        });
+        }
     }
 
     @PluginMethod
