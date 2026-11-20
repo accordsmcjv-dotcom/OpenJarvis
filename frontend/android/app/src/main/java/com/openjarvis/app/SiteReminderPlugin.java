@@ -58,6 +58,10 @@ public class SiteReminderPlugin extends Plugin {
             if (alarms != null) alarms.cancel(pending);
             pending.cancel();
         }
+        // Remove the persisted reminder too, otherwise the boot receiver could
+        // recreate an alarm that the user already cancelled or completed.
+        getContext().getSharedPreferences("shivam_site_reminders", Context.MODE_PRIVATE)
+            .edit().remove("reminder_" + id).apply();
         JSObject result = new JSObject();
         result.put("cancelled", true);
         call.resolve(result);
