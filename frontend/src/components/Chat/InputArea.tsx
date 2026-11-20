@@ -219,7 +219,7 @@ export function InputArea() {
   }, [speechEnabled, startRecording, stopRecording]);
 
   const handleMicClick = useCallback(async () => {
-    if (speechState === 'recording') {
+    if (speechState === 'recording' || speechState === 'transcribing') {
       try {
         const text = await stopRecording();
         if (text) {
@@ -227,11 +227,17 @@ export function InputArea() {
         }
       } catch {
         // Error is captured in useSpeech
+      } finally {
+        if (speechEnabled) {
+          void ShivamWakeWord.startListening().catch(() => {});
+        }
       }
     } else {
+      // Avoid two Android SpeechRecognizer instances competing for the mic.
+      await ShivamWakeWord.stopListening().catch(() => {});
       await startRecording();
     }
-  }, [speechState, startRecording, stopRecording]);
+  }, [speechState, speechEnabled, startRecording, stopRecording]);
 
   useEffect(() => {
     const el = textareaRef.current;
