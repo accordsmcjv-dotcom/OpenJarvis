@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   ArrowLeftRight, Banknote, Calculator, Download, FileCog, Image as ImageIcon,
   RefreshCw, Upload, X,
 } from 'lucide-react';
+
+interface ShivamPdfReaderApi {
+  pickPdfAndRead(): Promise<{ text: string; message: string; pagesRead: number; totalPages: number }>;
+}
+const ShivamPdfReader = registerPlugin<ShivamPdfReaderApi>('ScreenUnderstanding');
 
 type Tab = 'units' | 'currency' | 'files';
 type UnitCategory = 'length' | 'weight' | 'area' | 'volume' | 'temperature' | 'speed' | 'time' | 'data';
@@ -38,6 +44,8 @@ export function SmartConverterPage() {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   const [fileBusy, setFileBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfNotice, setPdfNotice] = useState('');
   const [textPreview, setTextPreview] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const imageUrl = useMemo(() => file && file.type.startsWith('image/') ? URL.createObjectURL(file) : '', [file]);
@@ -77,7 +85,7 @@ export function SmartConverterPage() {
   useEffect(() => { void loadRate(); }, [baseCurrency, targetCurrency]);
 
   const chooseFile = (selected: File | null) => {
-    setFile(selected); setFileError(''); setTextPreview('');
+    setFile(selected); setFileError(''); setPdfNotice(''); setTextPreview('');
     if (!selected) return;
     const isImage = selected.type.startsWith('image/');
     const isText = selected.type.startsWith('text/') || /\.(txt|csv|tsv|md)$/i.test(selected.name);
@@ -92,6 +100,22 @@ export function SmartConverterPage() {
       reader.onload = () => setTextPreview(String(reader.result || ''));
       reader.onerror = () => setFileError('फाइल वाचता आली नाही.');
       reader.readAsText(selected);
+    }
+  };
+
+  const readPdf = async () => {
+    setPdfBusy(true); setFileError(''); setPdfNotice('');
+    try {
+      const result = await ShivamPdfReader.pickPdfAndRead();
+      if (!result.text?.trim()) throw new Error(result.message || 'PDF मधील मजकूर वाचता आला नाही.');
+      const extractedFile = new File([result.text], 'PDF_Text.txt', { type: 'text/plain' });
+      setFile(extractedFile);
+      setTextPreview(result.text);
+      setPdfNotice(`PDF मधील ${result.pagesRead} / ${result.totalPages} पाने वाचली. आता TXT किंवा DOCX डाउनलोड करू शकता.`);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : 'PDF वाचता आला नाही.');
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -195,6 +219,8 @@ export function SmartConverterPage() {
       <div><h2 className="font-semibold">File Converter</h2><p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>फोटो, मजकूर आणि CSV फाइल्सचे रूपांतर</p></div>
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,text/plain,text/csv,.txt,.csv,.tsv,.md" className="hidden" onChange={(e) => chooseFile(e.target.files?.[0] || null)} />
       <button onClick={() => fileInput.current?.click()} className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-6 text-sm" style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}><Upload size={24} />फाइल निवडा (कमाल 20 MB)</button>
+      {Capacitor.isNativePlatform() && <button disabled={pdfBusy || fileBusy} onClick={() => void readPdf()} className="rounded-xl px-4 py-3 text-sm disabled:opacity-50" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{pdfBusy ? 'PDF वाचत आहे…' : 'PDF मधून मजकूर काढा (कमाल 10 पाने)'}</button>}
+      {pdfNotice && <p className="text-xs" style={{ color: 'var(--color-success, var(--color-accent))' }}>{pdfNotice}</p>}
       {file && <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--color-bg-tertiary)' }}><div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{file.name}</p><p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{(file.size / 1024).toFixed(1)} KB</p></div><button onClick={() => chooseFile(null)} className="p-2"><X size={17} /></button></div>}
       {imageUrl && !fileError && <div className="rounded-xl overflow-hidden max-h-64 flex justify-center"><img src={imageUrl} alt="निवडलेला फोटो" className="max-h-64 object-contain" /></div>}
       {file && imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['image/jpeg', 'image/png', 'image/webp'] as const).map((format) => <button key={format} disabled={fileBusy} onClick={() => void convertImage(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{fileBusy ? 'रूपांतर सुरू…' : format === 'image/jpeg' ? 'JPG करा' : format === 'image/png' ? 'PNG करा' : 'WebP करा'}</button>)}</div>}
