@@ -331,7 +331,7 @@ export function InputArea() {
     const content = (voiceCommand ?? input).trim();
     if (!content || streamState.isStreaming) return;
 
-    const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/\\s+/g, ' ').trim();
+    const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|yes|yeah|ok|okay|haan|ha|kar|kara)(\\s+(कर|करा|लाव|लावा))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
     const speakCallReply = (reply: string) => {
@@ -358,13 +358,13 @@ export function InputArea() {
         const selected = pendingCall.selected;
         if (!selected) {
           setPendingCall({ stage: 'contact', contacts: [] });
-          speakCallReply('कोणाला कॉल करू? संपर्काचे नाव सांगा.');
+          speakCallReply('शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
           return;
         }
         setPendingCall(null);
         try {
           await placeShivamCall(selected.number);
-          speakCallReply(`हो, मी आता ${selected.name} यांना कॉल लावत आहे.`);
+          speakCallReply(`हो, शिवम आता ${selected.name} यांना कॉल लावत आहे.`);
         } catch (error) {
           speakCallReply(error instanceof Error ? error.message : 'कॉल करता आला नाही. Android फोन परवानगी तपासा.');
         }
@@ -373,7 +373,7 @@ export function InputArea() {
       if (pendingCall.stage === 'choose') {
         const matches = pendingCall.contacts.filter((contact) =>
           contact.name.toLocaleLowerCase('mr-IN').includes(normalized)
-          || contact.number.replace(/\\D/g, '').endsWith(normalized.replace(/\\D/g, '')),
+          || contact.number.replace(/\D/g, '').endsWith(normalized.replace(/\D/g, '')),
         );
         if (matches.length !== 1) {
           speakCallReply(matches.length > 1
@@ -383,7 +383,7 @@ export function InputArea() {
         }
         const selected = matches[0];
         setPendingCall({ stage: 'confirm', contacts: pendingCall.contacts, selected });
-        speakCallReply(`मी ${selected.name} यांना कॉल करू का?`);
+        speakCallReply(`शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
         return;
       }
       try {
@@ -395,10 +395,10 @@ export function InputArea() {
         if (result.contacts.length === 1) {
           const selected = result.contacts[0];
           setPendingCall({ stage: 'confirm', contacts: result.contacts, selected });
-          speakCallReply(`मी ${selected.name} यांना कॉल करू का?`);
+          speakCallReply(`शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
         } else {
           setPendingCall({ stage: 'choose', contacts: result.contacts });
-          speakCallReply('या नावाशी जुळणारे अनेक संपर्क आहेत. कोणाला कॉल करू?');
+          speakCallReply('या नावाशी जुळणारे अनेक संपर्क आहेत. शिवम विचारतोय, कोणाला कॉल करू?');
         }
       } catch (error) {
         speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत. संपर्क परवानगी तपासा.');
@@ -411,22 +411,23 @@ export function InputArea() {
     if (callIntent) {
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|त्याला|तिला|याला|हिला|त्यांना|यांना|फोन|कॉल|call|phone|लाव|लावा|कर|करा|lav|kara|kar|please|now)/g, ' ')
-        .replace(/\\s+/g, ' ').trim();
+        .replace(/(^|\s)(ला|la)(?=\s|$)/g, ' ')
+        .replace(/\s+/g, ' ').trim();
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
-        speakCallReply('नक्की. कोणाला कॉल करू? संपर्काचे नाव सांगा.');
+        speakCallReply('शिवम विचारतोय, शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
       } else {
         try {
           const result = await findShivamContacts(target);
           if (!result.contacts.length) {
-            speakCallReply(`${target} या नावाचा संपर्क सापडला नाही. कोणाला कॉल करू?`);
+            speakCallReply(`${target} या नावाचा संपर्क सापडला नाही. शिवम विचारतोय, कोणाला कॉल करू?`);
           } else if (result.contacts.length === 1) {
             const selected = result.contacts[0];
             setPendingCall({ stage: 'confirm', contacts: result.contacts, selected });
-            speakCallReply(`मी ${selected.name} यांना कॉल करू का?`);
+            speakCallReply(`शिवम विचारतोय, मी ${selected.name} यांना कॉल करू का?`);
           } else {
             setPendingCall({ stage: 'choose', contacts: result.contacts });
-            speakCallReply(`${target} नावाचे अनेक संपर्क आहेत. कोणाला कॉल करू?`);
+            speakCallReply(`${target} नावाचे अनेक संपर्क आहेत. शिवम विचारतोय, कोणाला कॉल करू?`);
           }
         } catch (error) {
           speakCallReply(error instanceof Error ? error.message : 'संपर्क शोधता आले नाहीत. संपर्क परवानगी तपासा.');
