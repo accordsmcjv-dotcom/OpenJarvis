@@ -45,6 +45,47 @@ export function ChatArea() {
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const ttsPlaybackState = useTtsStore((s) => s.state);
+  const weatherCities = [
+    { name: 'Badnera', lat: 20.8648, lon: 77.73521 },
+    { name: 'Shrirampur', lat: 19.6208, lon: 74.6544 },
+    { name: 'Amravati', lat: 20.9374, lon: 77.7796 },
+    { name: 'Nagpur', lat: 21.1458, lon: 79.0882 },
+    { name: 'Pune', lat: 18.5204, lon: 73.8567 },
+    { name: 'Mumbai', lat: 19.076, lon: 72.8777 },
+  ];
+  const [weatherCity, setWeatherCity] = useState('Badnera');
+  const [weatherSummary, setWeatherSummary] = useState('LOADING');
+  const [weatherBusy, setWeatherBusy] = useState(false);
+
+  useEffect(() => {
+    const city = weatherCities.find((item) => item.name === weatherCity) ?? weatherCities[0];
+    let cancelled = false;
+    const loadWeather = async () => {
+      setWeatherBusy(true);
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=Asia%2FKolkata`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Weather unavailable');
+        const data = await response.json() as { current?: { temperature_2m?: number; relative_humidity_2m?: number; weather_code?: number } };
+        const current = data.current;
+        if (!current || typeof current.temperature_2m !== 'number') throw new Error('Weather data missing');
+        const code = current.weather_code ?? -1;
+        const condition = code === 0 ? 'CLEAR' : [1, 2, 3].includes(code) ? 'CLOUDY'
+          : [45, 48].includes(code) ? 'FOG' : [51, 53, 55, 56, 57].includes(code) ? 'DRIZZLE'
+          : [61, 63, 65, 66, 67, 80, 81, 82].includes(code) ? 'RAIN'
+          : [71, 73, 75, 77, 85, 86].includes(code) ? 'SNOW'
+          : [95, 96, 99].includes(code) ? 'STORM' : 'WEATHER';
+        if (!cancelled) setWeatherSummary(`${Math.round(current.temperature_2m)}°C · ${condition}`);
+      } catch {
+        if (!cancelled) setWeatherSummary('UNAVAILABLE');
+      } finally {
+        if (!cancelled) setWeatherBusy(false);
+      }
+    };
+    void loadWeather();
+    const timer = window.setInterval(loadWeather, 15 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [weatherCity]);
 
   useEffect(() => {
     type BatteryLike = EventTarget & { level: number; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
@@ -292,6 +333,14 @@ export function ChatArea() {
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}%`}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {weatherCity.toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">CPU TEMP</span><b>N/A</b></div>
+            </div>
+            <div className="shivam-weather-picker" aria-label="हवामानासाठी शहर निवडा">
+              <label htmlFor="shivam-weather-city">हवामानाचे शहर</label>
+              <select id="shivam-weather-city" value={weatherCity} onChange={(event) => setWeatherCity(event.target.value)}>
+                {weatherCities.map((city) => <option key={city.name} value={city.name}>{city.name}</option>)}
+              </select>
             </div>
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
