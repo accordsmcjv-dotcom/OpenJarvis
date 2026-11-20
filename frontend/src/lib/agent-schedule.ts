@@ -98,7 +98,7 @@ export function buildAgentExecutionInstruction(instruction: string): string {
     '5. If a step fails, diagnose the cause, retry at most once when safe, then re-plan around the failure instead of claiming success.',
     '6. Verify the final result using available tools and clearly separate completed actions, pending approvals, and blockers.',
     '7. Never invent tool results, files, confirmations, or completed actions.'
-  ].join('\\n');
+  ].join('\n');
   const userInstruction = instruction.trim();
-  return userInstruction ? userInstruction + '\\n\\n' + protocol : protocol;
+  return userInstruction ? userInstruction + '\n\n' + protocol : protocol;
 }
