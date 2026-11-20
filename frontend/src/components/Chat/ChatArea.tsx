@@ -66,6 +66,7 @@ export function ChatArea() {
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
   const [weatherSummary, setWeatherSummary] = useState('LOADING');
+  const [weatherHumidity, setWeatherHumidity] = useState<number | null>(null);
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [weatherForecast, setWeatherForecast] = useState<Array<{ date: string; max: number; min: number; rain: number }>>([]);
   const [weatherAlert, setWeatherAlert] = useState('');
@@ -126,6 +127,7 @@ export function ChatArea() {
           : [95, 96, 99].includes(code) ? 'STORM' : 'WEATHER';
         if (!cancelled) {
           setWeatherSummary(`${Math.round(current.temperature_2m)}°C · ${condition}`);
+          setWeatherHumidity(typeof current.relative_humidity_2m === 'number' ? Math.round(current.relative_humidity_2m) : null);
           const daily = data.daily;
           if (daily?.time && daily.temperature_2m_max && daily.temperature_2m_min) {
             const forecast = daily.time.map((date, index) => ({
@@ -136,16 +138,23 @@ export function ChatArea() {
             }));
             setWeatherForecast(forecast);
             const today = forecast[0];
-            setWeatherAlert(today
-              ? today.rain >= 60 ? 'आज पावसाची शक्यता जास्त आहे. बाहेर पडताना छत्री ठेवा.'
-                : today.max >= 38 ? 'आज उष्णता जास्त असू शकते. पाणी पित राहा.'
-                : today.min <= 12 ? 'आज थंडी जाणवेल. उबदार कपडे वापरा.'
-                : ''
-              : '');
+            const rainyDay = forecast.find((day) => day.rain >= 70);
+            const hotDay = forecast.find((day) => day.max >= 38);
+            const coldDay = forecast.find((day) => day.min <= 12);
+            setWeatherAlert(today && today.rain >= 60
+              ? 'आज पावसाची शक्यता जास्त आहे. बाहेर पडताना छत्री ठेवा.'
+              : today && today.max >= 38
+                ? 'आज उष्णता जास्त असू शकते. पाणी पित राहा.'
+                : today && today.min <= 12
+                  ? 'आज थंडी जाणवेल. उबदार कपडे वापरा.'
+                  : rainyDay ? new Date(rainyDay.date + 'T12:00:00').toLocaleDateString('mr-IN', { weekday: 'long' }) + ' पावसाची शक्यता जास्त आहे.'
+                    : hotDay ? 'पुढील आठवड्यात उष्ण दिवस अपेक्षित आहेत.'
+                      : coldDay ? 'पुढील आठवड्यात थंडी वाढू शकते.'
+                        : '');
           }
         }
       } catch {
-        if (!cancelled) { setWeatherSummary('UNAVAILABLE'); setWeatherForecast([]); setWeatherAlert(''); }
+        if (!cancelled) { setWeatherSummary('UNAVAILABLE'); setWeatherHumidity(null); setWeatherForecast([]); setWeatherAlert(''); }
       } finally {
         if (!cancelled) setWeatherBusy(false);
       }
@@ -404,7 +413,7 @@ export function ChatArea() {
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">CPU TEMP</span><b>N/A</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">HUMIDITY</span><b>{weatherHumidity === null ? "N/A" : `${weatherHumidity}%`}</b></div>
             </div>
             <div className="shivam-weather-picker" aria-label="हवामानाचे स्थान निवडा">
               <button type="button" onClick={requestCurrentLocation} disabled={locationBusy} className="shivam-location-button">
