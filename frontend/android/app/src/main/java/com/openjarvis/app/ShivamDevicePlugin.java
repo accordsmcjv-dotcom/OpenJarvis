@@ -100,6 +100,34 @@ public class ShivamDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void startWatchman(PluginCall call) {
+        try {
+            Intent service = new Intent(getContext(), ShivamWatchmanService.class);
+            service.setAction(ShivamWatchmanService.ACTION_START);
+            androidx.core.content.ContextCompat.startForegroundService(getContext(), service);
+            JSObject result = new JSObject();
+            result.put("started", true);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Smart Watchman सुरू करता आला नाही. Notification परवानगी तपासा.", error);
+        }
+    }
+
+    @PluginMethod
+    public void stopWatchman(PluginCall call) {
+        try {
+            Intent service = new Intent(getContext(), ShivamWatchmanService.class);
+            service.setAction(ShivamWatchmanService.ACTION_STOP);
+            getContext().startService(service);
+            JSObject result = new JSObject();
+            result.put("stopping", true);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Smart Watchman बंद करता आला नाही.", error);
+        }
+    }
+
+    @PluginMethod
     public void openNavigation(PluginCall call) {
         String destination = call.getString("destination");
         String mode = call.getString("mode", "driving");
