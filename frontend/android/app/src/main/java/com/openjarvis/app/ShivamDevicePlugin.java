@@ -114,6 +114,16 @@ public class ShivamDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setNotificationReadingEnabled(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", false);
+        getContext().getSharedPreferences("shivam_notification_privacy", Context.MODE_PRIVATE)
+            .edit().putBoolean("voice_reading_enabled", enabled).apply();
+        JSObject result = new JSObject();
+        result.put("enabled", enabled);
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void getWatchmanStatus(PluginCall call) {
         boolean enabled = getContext().getSharedPreferences("shivam_watchman", Context.MODE_PRIVATE)
             .getBoolean("user_enabled", false);
