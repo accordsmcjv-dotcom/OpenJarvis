@@ -54,11 +54,35 @@ export function ChatArea() {
     { name: 'Mumbai', lat: 19.076, lon: 72.8777 },
   ];
   const [weatherCity, setWeatherCity] = useState('Badnera');
+  const [weatherLocation, setWeatherLocation] = useState<{ name: string; lat: number; lon: number } | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
   const [weatherSummary, setWeatherSummary] = useState('LOADING');
   const [weatherBusy, setWeatherBusy] = useState(false);
 
+  const requestCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage('या डिव्हाइसवर Location उपलब्ध नाही');
+      return;
+    }
+    setLocationBusy(true);
+    setLocationMessage('स्थान मिळवत आहे…');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setWeatherLocation({ name: 'MY LOCATION', lat: position.coords.latitude, lon: position.coords.longitude });
+        setLocationBusy(false);
+        setLocationMessage('सध्याचे स्थान वापरत आहे');
+      },
+      (error) => {
+        setLocationBusy(false);
+        setLocationMessage(error.code === error.PERMISSION_DENIED ? 'Location परवानगी नाकारली. शहर निवडा.' : 'स्थान मिळाले नाही. पुन्हा प्रयत्न करा.');
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
+    );
+  };
+
   useEffect(() => {
-    const city = weatherCities.find((item) => item.name === weatherCity) ?? weatherCities[0];
+    const city = weatherLocation ?? (weatherCities.find((item) => item.name === weatherCity) ?? weatherCities[0]);
     let cancelled = false;
     const loadWeather = async () => {
       setWeatherBusy(true);
@@ -85,7 +109,7 @@ export function ChatArea() {
     void loadWeather();
     const timer = window.setInterval(loadWeather, 15 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [weatherCity]);
+  }, [weatherCity, weatherLocation]);
 
   useEffect(() => {
     type BatteryLike = EventTarget & { level: number; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
@@ -333,12 +357,16 @@ export function ChatArea() {
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}%`}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {weatherCity.toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">CPU TEMP</span><b>N/A</b></div>
             </div>
-            <div className="shivam-weather-picker" aria-label="हवामानासाठी शहर निवडा">
-              <label htmlFor="shivam-weather-city">हवामानाचे शहर</label>
-              <select id="shivam-weather-city" value={weatherCity} onChange={(event) => setWeatherCity(event.target.value)}>
+            <div className="shivam-weather-picker" aria-label="हवामानाचे स्थान निवडा">
+              <button type="button" onClick={requestCurrentLocation} disabled={locationBusy} className="shivam-location-button">
+                {locationBusy ? 'स्थान मिळवत आहे…' : '⌖ माझे सध्याचे स्थान वापरा'}
+              </button>
+              {locationMessage && <span className="shivam-location-message" role="status">{locationMessage}</span>}
+              <label htmlFor="shivam-weather-city">किंवा शहर निवडा</label>
+              <select id="shivam-weather-city" value={weatherCity} onChange={(event) => { setWeatherCity(event.target.value); setWeatherLocation(null); setLocationMessage(''); }}>
                 {weatherCities.map((city) => <option key={city.name} value={city.name}>{city.name}</option>)}
               </select>
             </div>
