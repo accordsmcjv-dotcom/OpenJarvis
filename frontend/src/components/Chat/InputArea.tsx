@@ -107,7 +107,7 @@ function useResearchCorpusSync(enabled: boolean): {
 
 export function InputArea() {
   const [input, setInput] = useState('');
-  const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
+  const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'number' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
 
   useEffect(() => {
     const insertScreenText = (event: Event) => {
@@ -334,6 +334,9 @@ export function InputArea() {
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
     const affirmative = /^(हो|होय|कर|करा|लाव|लावा|yes|yeah|ok|okay|haan|ha|kar|kara)(\s+(कर|करा|लाव|लावा))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
+    const digitText = content.replace(/[०-९]/g, (digit) => String('०१२३४५६७८९'.indexOf(digit)));
+    const spokenNumber = digitText.replace(/[^0-9]/g, '');
+    const isPhoneNumber = spokenNumber.length >= 7 && spokenNumber.length <= 15;
     const speakCallReply = (reply: string) => {
       let id = activeId;
       if (!id) id = createConversation(selectedModel || 'default');
@@ -348,6 +351,16 @@ export function InputArea() {
       if (negative) {
         setPendingCall(null);
         speakCallReply('ठीक आहे. मी कॉल करत नाही.');
+        return;
+      }
+      if (pendingCall.stage === 'number') {
+        if (!isPhoneNumber) {
+          speakCallReply('कृपया १० अंकी मोबाईल नंबर स्पष्ट सांगा.');
+          return;
+        }
+        const selected = { name: 'या नंबरवर', number: spokenNumber };
+        setPendingCall({ stage: 'confirm', contacts: [], selected });
+        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर कॉल करू का?`);
         return;
       }
       if (pendingCall.stage === 'confirm') {
@@ -409,13 +422,20 @@ export function InputArea() {
     const callIntent = /(कॉल|फोन|call|phone)/.test(normalized)
       && /(कर|करा|लाव|लावा|lav|kar|call|phone)/.test(normalized);
     if (callIntent) {
+      if (isPhoneNumber) {
+        const selected = { name: 'या नंबरवर', number: spokenNumber };
+        setPendingCall({ stage: 'confirm', contacts: [], selected });
+        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर कॉल करू का?`);
+        return;
+      }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|त्याला|तिला|याला|हिला|त्यांना|यांना|फोन|कॉल|call|phone|लाव|लावा|कर|करा|lav|kara|kar|please|now)/g, ' ')
         .replace(/(^|\s)(ला|la)(?=\s|$)/g, ' ')
         .replace(/\s+/g, ' ').trim();
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
-        speakCallReply('शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
+        setPendingCall({ stage: 'number', contacts: [] });
+        speakCallReply('शिवम विचारतोय, कोणत्या नंबरवर कॉल करू? नंबर सांगा.');
       } else {
         try {
           const result = await findShivamContacts(target);
