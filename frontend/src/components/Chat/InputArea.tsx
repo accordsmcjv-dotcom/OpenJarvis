@@ -374,7 +374,7 @@ export function InputArea() {
     if (!content || streamState.isStreaming) return;
 
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/[ ]+/g, ' ').trim();
-    const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनची बॅटरी|बॅटरी किती|battery किती|battery status|फोनची storage|स्टोरेज किती|storage किती|ram किती|रॅम किती|wifi status|वायफायची स्थिती|हेडफोन जोडले|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status)/.test(normalized);
+    const deviceStatusIntent = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|फोनची बॅटरी|बॅटरी किती|battery किती|battery status|फोनची storage|स्टोरेज किती|storage किती|ram किती|रॅम किती|wifi status|वायफायची स्थिती|हेडफोन जोडले|ringer status|सायलेंट मोड|डू नॉट डिस्टर्ब|फोन लॉक आहे|device status|phone status|phone chi sthiti|phone chi mahiti|phone status sang)/.test(normalized);
     if (deviceStatusIntent && Capacitor.isNativePlatform()) {
       try {
         const info = await ShivamNavigation.getTelemetry();
@@ -389,11 +389,23 @@ export function InputArea() {
           const dnd: Record<string, string> = { OFF: 'बंद', TOTAL_SILENCE: 'पूर्ण शांतता', ALARMS_ONLY: 'फक्त अलार्म', PRIORITY_ONLY: 'प्राधान्य सूचना' };
           parts.push(`फोनचा आवाज ${ring[info.ringerMode ?? ''] ?? 'माहिती उपलब्ध नाही'} मध्ये आहे. डू नॉट डिस्टर्ब ${dnd[info.dndStatus ?? ''] ?? 'स्थिती उपलब्ध नाही'}.`);
         }
-        if (/(लॉक|screen|स्क्रीन|फोनची स्थिती|फोनची माहिती|device status|phone status)/.test(normalized)) {
+        const fullDeviceStatus = /(फोनची स्थिती|फोनची माहिती|फोनबद्दल सांग|फोन बद्दल सांग|device status|phone status|phone chi sthiti|phone chi mahiti|phone status sang)/.test(normalized);
+        if (fullDeviceStatus || /(लॉक|screen|स्क्रीन)/.test(normalized)) {
           if (info.deviceModel) parts.push(`डिव्हाइस ${info.deviceModel}, Android ${info.androidVersion ?? 'आवृत्ती अज्ञात'}.`);
           if (typeof info.deviceLocked === 'boolean') parts.push(info.deviceLocked ? 'फोन लॉक आहे.' : 'फोन अनलॉक आहे.');
           if (typeof info.screenInteractive === 'boolean') parts.push(info.screenInteractive ? 'स्क्रीन सुरू आहे.' : 'स्क्रीन बंद आहे.');
-          if (info.thermalStatus) parts.push(`फोनचे तापमान नियंत्रण स्थिती ${info.thermalStatus} आहे.`);
+          if (info.thermalStatus) parts.push(`फोनची तापमान नियंत्रण स्थिती ${info.thermalStatus} आहे.`);
+        }
+        if (fullDeviceStatus) {
+          if (typeof info.batteryPercent === 'number') parts.push(`बॅटरी ${info.batteryPercent} टक्के आहे.`);
+          if (typeof info.chargerConnected === 'boolean') parts.push(info.chargerConnected ? 'चार्जर जोडलेला आहे.' : 'चार्जर जोडलेला नाही.');
+          if (typeof info.storageFreeGb === 'number') parts.push(`मोकळी स्टोरेज ${info.storageFreeGb.toFixed(1)} जीबी आहे.`);
+          if (typeof info.memoryAvailableGb === 'number') parts.push(`उपलब्ध RAM ${info.memoryAvailableGb.toFixed(1)} जीबी आहे.`);
+          parts.push(`इंटरनेट ${info.internetValidated ? 'उपलब्ध आहे' : 'उपलब्ध नाही'}.`);
+          parts.push(info.wifiConnected ? 'Wi-Fi जोडलेले आहे.' : info.wifiEnabled ? 'Wi-Fi चालू आहे पण जोडलेले नाही.' : 'Wi-Fi बंद आहे.');
+          parts.push(info.bluetoothAudioConnected ? 'Bluetooth हेडफोन जोडलेले आहेत.' : info.wiredHeadphonesConnected ? 'वायर्ड हेडफोन जोडलेले आहेत.' : 'हेडफोन जोडलेले नाहीत.');
+          const ring: Record<string, string> = { NORMAL: 'रिंग मोड', SILENT: 'सायलेंट मोड', VIBRATE: 'व्हायब्रेशन मोड' };
+          parts.push(`आवाज ${ring[info.ringerMode ?? ''] ?? 'माहिती उपलब्ध नाही'} मध्ये आहे.`);
         }
         speakCallReply(parts.join(' ') || 'फोनची माहिती सध्या मिळाली नाही.');
       } catch (error) {
