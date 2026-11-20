@@ -189,9 +189,11 @@ public class ShivamWatchmanService extends Service {
             audioDeviceCallback = new AudioDeviceCallback() {
                 @Override public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
                     refreshAudioDeviceState();
+                    updateStatusNotification();
                 }
                 @Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
                     refreshAudioDeviceState();
+                    updateStatusNotification();
                 }
             };
             try { audioManager.registerAudioDeviceCallback(audioDeviceCallback, null); }
