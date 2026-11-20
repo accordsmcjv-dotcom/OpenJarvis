@@ -888,3 +888,10 @@
 @keyframes shivam-core-pulse { 0%,100% { transform:scale(.97); opacity:.78; } 50% { transform:scale(1.035); opacity:1; } }
 @media (max-width:420px) { .shivam-reactor { width:clamp(174px,48vw,220px); } .shivam-home-meta { margin-bottom:6px; } .shivam-ready { font-size:8px; } }
 @media (prefers-reduced-motion:reduce) { .shivam-ring-outer,.shivam-ring-mid,.shivam-reactor-core,.shivam-reactor::before { animation:none; } .shivam-voice-wave span { animation:none !important; height:4px; } }
+
+/* SHIVAM weather city selector */
+.shivam-weather-picker { display:flex; align-items:center; justify-content:center; gap:9px; margin:10px 0 0; color:rgba(133,220,245,.68); font:9px var(--font-hud); letter-spacing:.08em; }
+.shivam-weather-picker select { max-width:160px; padding:6px 25px 6px 9px; border:1px solid rgba(91,213,255,.28); border-radius:7px; color:#b9efff; background:rgba(5,28,48,.82); font:10px var(--font-hud); outline:none; }
+.shivam-weather-picker select:focus { border-color:rgba(91,230,255,.75); box-shadow:0 0 12px rgba(34,211,238,.16); }
+.shivam-weather-picker option { color:#d9f8ff; background:#071a2b; }
+@media (max-width:420px) { .shivam-weather-picker { margin-top:8px; } }
