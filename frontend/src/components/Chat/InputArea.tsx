@@ -971,7 +971,7 @@ export function InputArea() {
               const fileName = String(data.result.filename || 'फाइल डाउनलोड करा');
               const downloadUrl = String(data.result.download_url);
               if (downloadUrl.startsWith('/v1/documents/download/')) {
-                accumulatedContent += '\\n\\n[' + fileName + ' डाउनलोड करा](' + getBase() + downloadUrl + ')';
+                accumulatedContent += '\n\n[' + fileName + ' डाउनलोड करा](' + getBase() + downloadUrl + ')';
               }
             }
             setStreamState({
