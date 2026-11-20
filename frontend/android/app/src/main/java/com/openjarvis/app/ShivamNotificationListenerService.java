@@ -25,7 +25,7 @@ public class ShivamNotificationListenerService extends NotificationListenerServi
         if (TextUtils.isEmpty(textValue)) textValue = extras.getCharSequence(Notification.EXTRA_TEXT);
         String content = (String.valueOf(titleValue) + " " + String.valueOf(textValue)).toLowerCase(java.util.Locale.ROOT);
         if (content.matches("(?s).*\\\\b\\\\d{4,8}\\\\b.*") && (content.contains("otp") || content.contains("one-time") || content.contains("verification") || content.contains("code"))) return;
-        if (content.matches("(?s).*\\\\b\\\\d{4,8}\\\\b.*") && (content.contains("otp") || content.contains("one-time") || content.contains("verification") || content.contains("code"))) return;
+        if (content.contains("otp") || content.contains("पासवर्ड") || content.contains("password") || content.contains("pin code") || content.contains("पिन कोड") || content.contains("verification code") || content.contains("transaction")) return;
         Intent event = new Intent("com.openjarvis.app.NOTIFICATION_CAPTURED");
         event.setPackage(getPackageName());
         event.putExtra("packageName", sbn.getPackageName());
