@@ -104,9 +104,10 @@ def create_tool_approval(tool_name, arguments):
         "created_at": now.isoformat(),
         "expires_at": (now + datetime.timedelta(minutes=5)).isoformat()
     }
-    approvals = load_approvals()
-    approvals.append(action)
-    save_approvals(approvals)
+    with APPROVAL_LOCK:
+        approvals = load_approvals()
+        approvals.append(action)
+        save_approvals(approvals)
     return action
 
 def create_approval(app_name):
@@ -130,9 +131,10 @@ def create_approval(app_name):
         "expires_at": (now + datetime.timedelta(minutes=5)).isoformat()
     }
 
-    approvals = load_approvals()
-    approvals.append(action)
-    save_approvals(approvals)
+    with APPROVAL_LOCK:
+        approvals = load_approvals()
+        approvals.append(action)
+        save_approvals(approvals)
     return action
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
