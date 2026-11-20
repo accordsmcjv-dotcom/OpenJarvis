@@ -435,7 +435,7 @@ def add_note(text, title=""):
         "id": str(uuid.uuid4()),
         "title": title,
         "text": text,
-        "created_at": datetime.datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+        "created_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     }
     notes.append(note)
     _write_notes(notes)
