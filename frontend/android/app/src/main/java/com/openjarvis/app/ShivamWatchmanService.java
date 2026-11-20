@@ -37,6 +37,7 @@ public class ShivamWatchmanService extends Service {
     private AudioManager audioManager;
     private AudioDeviceCallback audioDeviceCallback;
     private boolean internetAvailable;
+    private boolean wifiConnected;
     private boolean headphonesConnected;
     private boolean bluetoothHeadphonesConnected;
 
@@ -146,22 +147,31 @@ public class ShivamWatchmanService extends Service {
         if (connectivityManager == null) return;
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override public void onAvailable(Network network) {
-                internetAvailable = hasValidatedInternet();
+                NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(network);
+                internetAvailable = caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                wifiConnected = caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
                 updateStatusNotification();
             }
             @Override public void onLost(Network network) {
                 internetAvailable = hasValidatedInternet();
+                Network active = connectivityManager.getActiveNetwork();
+                NetworkCapabilities caps = active == null ? null : connectivityManager.getNetworkCapabilities(active);
+                wifiConnected = caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
                 updateStatusNotification();
                 if (!internetAvailable) postAlert("इंटरनेट कनेक्शन उपलब्ध नाही");
             }
             @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
                 internetAvailable = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                wifiConnected = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
                 updateStatusNotification();
             }
         };
         try { connectivityManager.registerDefaultNetworkCallback(networkCallback); }
         catch (Exception ignored) { }
         internetAvailable = hasValidatedInternet();
+        Network active = connectivityManager.getActiveNetwork();
+        NetworkCapabilities caps = active == null ? null : connectivityManager.getNetworkCapabilities(active);
+        wifiConnected = caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
     }
 
     private boolean hasValidatedInternet() {
@@ -240,7 +250,8 @@ public class ShivamWatchmanService extends Service {
 
     private void updateStatusNotification() {
         refreshAudioDeviceState();
-        String network = internetAvailable ? "इंटरनेट जोडलेले" : "इंटरनेट नाही";
+        String network = (wifiConnected ? "Wi-Fi" : "मोबाईल नेटवर्क")
+            + (internetAvailable ? " · इंटरनेट जोडलेले" : " · इंटरनेट नाही");
         String audio = headphonesConnected
             ? (bluetoothHeadphonesConnected ? "Bluetooth हेडफोन जोडलेले" : "हेडफोन जोडलेले")
             : "हेडफोन जोडलेले नाहीत";
