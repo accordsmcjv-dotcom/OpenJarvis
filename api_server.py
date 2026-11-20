@@ -2615,7 +2615,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "search_notes":
                                     result = search_notes(arguments["query"])
                                 elif tool_name == "delete_note":
-
+                                    action = create_tool_approval("delete_note", arguments)
+                                    result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
                                 elif tool_name in ("get_current_time", "get_system_info", "get_available_tools"):
                                     result = execute_tool(tool_name, arguments)
                                 else:
