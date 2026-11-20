@@ -2058,7 +2058,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             if isinstance(image_url, str) and image_url.startswith("data:image/"):
                                 valid_parts.append(part)
                     if text_parts and any(part.get("type") == "image_url" for part in valid_parts):
-                        incoming.append({"role": "user", "content": "\\n".join(text_parts)})
+                        incoming.append({"role": "user", "content": "\n".join(text_parts)})
                         vision_message = {"role": "user", "content": valid_parts}
 
             if len(incoming) == 1 and incoming[0]["role"] == "user":
