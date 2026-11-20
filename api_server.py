@@ -496,6 +496,35 @@ def delete_note(note_id):
     return {"success": True, "message": "नोंद हटवली आहे."}
 
 
+def verify_tool_result(result):
+    """Tool निकालातील यश, अपयश आणि मंजुरीची प्रतीक्षा वेगळी ओळखा."""
+    if not isinstance(result, dict):
+        return {"success": result is not None, "status": "success" if result is not None else "error"}
+    payload = result.get("result", result)
+    if isinstance(payload, dict):
+        if payload.get("pending_approval") is True:
+            return {"success": False, "status": "pending_approval"}
+        if payload.get("success") is False or payload.get("error") or result.get("error"):
+            return {"success": False, "status": "error"}
+    elif result.get("error"):
+        return {"success": False, "status": "error"}
+    return {"success": True, "status": "success"}
+
+
+def retry_read_operation(operation, stage):
+    """फक्त सुरक्षित read-only कामात exception आल्यास एकदाच पुनर्प्रयत्न."""
+    try:
+        return operation()
+    except Exception as first_error:
+        record_recovery_diagnostic(str(stage) + "_RETRY_1", first_error)
+        try:
+            time.sleep(0.2)
+            return operation()
+        except Exception as retry_error:
+            record_recovery_diagnostic(str(stage) + "_RETRY_2", retry_error)
+            raise
+
+
 def validate_tool_arguments(tool_name, arguments, tool_specs):
     if not isinstance(arguments, dict):
         return "Tool Arguments अवैध आहेत."
@@ -2758,7 +2787,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                     if follow_name not in readonly_tools or validation_error:
                                         follow_result = {"error": validation_error or "या पुढील टप्प्यात फक्त सुरक्षित माहिती-वाचणारी Tools अनुमत आहेत."}
                                     elif follow_name == "web_search":
-                                        follow_result = tavily_web_search(follow_args["query"], follow_args.get("max_results", 5))
+                                        follow_result = retry_read_operation(
+                                            lambda: tavily_web_search(follow_args["query"], follow_args.get("max_results", 5)),
+                                            "FOLLOWUP_WEB_SEARCH"
+                                        )
                                     elif follow_name == "get_current_time":
                                         follow_result = execute_tool(follow_name, follow_args)
                                     elif follow_name == "smart_calculate":
@@ -2768,7 +2800,10 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                     elif follow_name == "get_system_info":
                                         follow_result = execute_tool(follow_name, follow_args)
                                     elif follow_name == "get_weather":
-                                        follow_result = get_badnera_weather(follow_args)
+                                        follow_result = retry_read_operation(
+                                            lambda: get_badnera_weather(follow_args),
+                                            "FOLLOWUP_WEATHER"
+                                        )
                                     elif follow_name == "search_memory":
                                         follow_result = search_memory(follow_args.get("query", ""), follow_args.get("category", ""), follow_args.get("limit", 10))
                                     elif follow_name == "memory_dashboard":
@@ -2791,16 +2826,18 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                         follow_result = {"result": follow_result}
                                 except Exception as follow_error:
                                     print("[SHIVAM FOLLOW-UP TOOL ERROR]", follow_name, type(follow_error).__name__)
-                                    follow_result = {"error": "पुढील Tool टप्पा पूर्ण करता आला नाही."}
+                                    record_recovery_diagnostic("FOLLOWUP_" + str(follow_name), follow_error)
+                                    follow_result = {"error": "पुढील Tool टप्पा एक पुनर्प्रयत्न करूनही पूर्ण करता आला नाही."}
 
+                                verification = verify_tool_result(follow_result)
                                 self.wfile.write(("event: tool_call_start\ndata: " + json.dumps({
-                                    "tool": follow_name, "arguments": follow_args if "follow_args" in locals() else {}
+                                    "tool": follow_name, "arguments": follow_args
                                 }, ensure_ascii=False) + "\n\n").encode("utf-8"))
                                 self.wfile.flush()
                                 self.wfile.write(("event: tool_call_end\ndata: " + json.dumps({
                                     "tool": follow_name,
-                                    "success": "error" not in follow_result and follow_result.get("success") is not False,
-                                    "status": "success" if "error" not in follow_result and follow_result.get("success") is not False else "error",
+                                    "success": verification["success"],
+                                    "status": verification["status"],
                                     "result": follow_result
                                 }, ensure_ascii=False) + "\n\n").encode("utf-8"))
                                 self.wfile.flush()
