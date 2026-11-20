@@ -183,6 +183,8 @@ export function PhotoEditorPage() {
     setFilter('none');
     setOverlayText('');
     setOverlaySize(42);
+    setOverlayColor('#ffffff');
+    setOverlayPosition('bottom');
     setSticker('');
     setStickerSize(13);
     setStickerPosition('bottom-right');
@@ -199,11 +201,14 @@ export function PhotoEditorPage() {
   function resetEdits() {
     setRotation(0);
     setFlip(false);
+    setFlipVertical(false);
     setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
     setOverlayText('');
     setOverlaySize(42);
+    setOverlayColor('#ffffff');
+    setOverlayPosition('bottom');
     setSticker('');
     setStickerSize(13);
     setStickerPosition('bottom-right');
