@@ -25,6 +25,7 @@ import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions;
 
 import java.nio.ByteBuffer;
@@ -42,7 +43,9 @@ public class ShivamScreenCaptureService extends Service {
     private MediaProjection projection;
     private VirtualDisplay display;
     private ImageReader imageReader;
-    private TextRecognizer recognizer;
+    private TextRecognizer devanagariRecognizer;
+    private TextRecognizer latinRecognizer;
+    private boolean processing = false;
     private boolean finished = false;
 
     @Override public void onCreate() {
@@ -92,9 +95,10 @@ public class ShivamScreenCaptureService extends Service {
             imageReader = ImageReader.newInstance(width, height, android.graphics.PixelFormat.RGBA_8888, 2);
             display = projection.createVirtualDisplay("SHIVAM-Screen-Read", width, height, density,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.getSurface(), null, handler);
-            recognizer = TextRecognition.getClient(new DevanagariTextRecognizerOptions.Builder().build());
+            devanagariRecognizer = TextRecognition.getClient(new DevanagariTextRecognizerOptions.Builder().build());
+            latinRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
             imageReader.setOnImageAvailableListener(reader -> {
-                if (finished) return;
+                if (finished || processing) return;
                 Image image = reader.acquireLatestImage();
                 if (image == null) return;
                 try {
@@ -103,10 +107,26 @@ public class ShivamScreenCaptureService extends Service {
                         finish(false, "स्क्रीन प्रतिमा तयार करता आली नाही.");
                         return;
                     }
-                    recognizer.process(InputImage.fromBitmap(bitmap, 0))
-                            .addOnSuccessListener(result -> finish(true, result.getText()))
-                            .addOnFailureListener(error -> finish(false, "स्क्रीनवरील मजकूर वाचता आला नाही: " + error.getMessage()))
-                            .addOnCompleteListener(task -> bitmap.recycle());
+                    processing = true;
+                    InputImage input = InputImage.fromBitmap(bitmap, 0);
+                    final String[] devanagariText = {""};
+                    final String[] latinText = {""};
+                    final int[] completed = {0};
+                    final boolean[] anySuccess = {false};
+                    Runnable combine = () -> {
+                        completed[0]++;
+                        if (completed[0] == 2 && !finished) {
+                            String combined = (devanagariText[0] + "\\n" + latinText[0]).trim();
+                            finish(anySuccess[0], combined.isEmpty() ? "स्क्रीनवर वाचता येण्याजोगा मजकूर आढळला नाही." : combined);
+                            bitmap.recycle();
+                        }
+                    };
+                    devanagariRecognizer.process(input)
+                            .addOnSuccessListener(result -> { devanagariText[0] = result.getText(); anySuccess[0] = true; })
+                            .addOnCompleteListener(task -> combine.run());
+                    latinRecognizer.process(input)
+                            .addOnSuccessListener(result -> { latinText[0] = result.getText(); anySuccess[0] = true; })
+                            .addOnCompleteListener(task -> combine.run());
                 } catch (Exception e) {
                     finish(false, "स्क्रीन वाचताना त्रुटी: " + e.getMessage());
                 } finally {
@@ -157,7 +177,8 @@ public class ShivamScreenCaptureService extends Service {
         handler.removeCallbacksAndMessages(null);
         if (display != null) { display.release(); display = null; }
         if (imageReader != null) { imageReader.close(); imageReader = null; }
-        if (recognizer != null) { recognizer.close(); recognizer = null; }
+        if (devanagariRecognizer != null) { devanagariRecognizer.close(); devanagariRecognizer = null; }
+        if (latinRecognizer != null) { latinRecognizer.close(); latinRecognizer = null; }
         if (projection != null) { projection.stop(); projection = null; }
         stopForeground(true);
         super.onDestroy();
