@@ -107,6 +107,7 @@ export function SmartConverterPage() {
         });
         const result = await response.json();
         if (!response.ok || typeof result?.text !== 'string') throw new Error(result?.error || 'फाइलमधील मजकूर काढता आला नाही.');
+        if (new TextEncoder().encode(result.text).byteLength > 100 * 1024) throw new Error('काढलेला मजकूर 100 KB पेक्षा मोठा आहे; लहान फाइल निवडा.');
         const extractedFile = new File([result.text], result.filename || 'Extracted.txt', {
           type: result.format === 'csv' ? 'text/csv' : 'text/plain',
         });
@@ -133,6 +134,7 @@ export function SmartConverterPage() {
     try {
       const result = await ShivamPdfReader.pickPdfAndRead();
       if (!result.text?.trim()) throw new Error(result.message || 'PDF मधील मजकूर वाचता आला नाही.');
+      if (new TextEncoder().encode(result.text).byteLength > 100 * 1024) throw new Error('PDF मधील मजकूर 100 KB पेक्षा मोठा आहे; कमी पानांचा PDF निवडा.');
       const extractedFile = new File([result.text], 'PDF_Text.txt', { type: 'text/plain' });
       setFile(extractedFile);
       setTextPreview(result.text);
