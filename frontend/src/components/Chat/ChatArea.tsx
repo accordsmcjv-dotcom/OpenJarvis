@@ -230,8 +230,10 @@ export function ChatArea() {
       if (/\b\d{4,8}\b/.test(message) && /(code|verify|verification|otp)/i.test(message)) return;
       setLastSmartNotification(message);
       void useTtsStore.getState().speak(`notification-${Date.now()}`, `नवीन सूचना. ${message}`);
-    }).then((handle) => { listenerHandle = handle; })
-      .catch(() => undefined);
+    }).then((handle) => {
+      if (active) listenerHandle = handle;
+      else void handle.remove();
+    }).catch(() => undefined);
     return () => {
       active = false;
       window.removeEventListener('focus', refreshNotificationAccess);
