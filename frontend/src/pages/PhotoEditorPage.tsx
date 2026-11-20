@@ -25,6 +25,10 @@ export function PhotoEditorPage() {
   const [sticker, setSticker] = useState('');
   const [stickerSize, setStickerSize] = useState(13);
   const [stickerPosition, setStickerPosition] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
+  const [frameColor, setFrameColor] = useState('#ffffff');
+  const [frameSize, setFrameSize] = useState(0);
+  const [exportFormat, setExportFormat] = useState<'jpeg' | 'png'>('jpeg');
+  const [exportQuality, setExportQuality] = useState(94);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -39,7 +43,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -132,6 +136,14 @@ export function PhotoEditorPage() {
       ctx.fillText(sticker, x, y);
       ctx.restore();
     }
+    if (frameSize > 0) {
+      ctx.save();
+      ctx.filter = 'none';
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = Math.max(2, Math.min(canvas.width, canvas.height) * frameSize / 100);
+      ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
+      ctx.restore();
+    }
   }
 
   function choosePhoto(event: React.ChangeEvent<HTMLInputElement>) {
@@ -154,6 +166,10 @@ export function PhotoEditorPage() {
     setSticker('');
     setStickerSize(13);
     setStickerPosition('bottom-right');
+    setFrameSize(0);
+    setFrameColor('#ffffff');
+    setExportFormat('jpeg');
+    setExportQuality(94);
     setImageUrl(URL.createObjectURL(file));
     event.target.value = '';
   }
@@ -169,14 +185,18 @@ export function PhotoEditorPage() {
     setSticker('');
     setStickerSize(13);
     setStickerPosition('bottom-right');
+    setFrameSize(0);
+    setFrameColor('#ffffff');
   }
 
   function savePhoto() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
-    link.download = `${fileName || 'SHIVAM-Edited'}.jpg`;
-    link.href = canvas.toDataURL('image/jpeg', 0.94);
+    const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
+    const extension = exportFormat === 'png' ? 'png' : 'jpg';
+    link.download = `${fileName || 'SHIVAM-Edited'}.${extension}`;
+    link.href = canvas.toDataURL(mimeType, exportQuality / 100);
     link.click();
   }
 
@@ -309,6 +329,18 @@ export function PhotoEditorPage() {
             </section>
 
             <section className="hud-panel space-y-3 p-4">
+              <div className="text-sm font-semibold">फोटो फ्रेम</div>
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span>फ्रेमचा रंग</span>
+                <input type="color" value={frameColor} disabled={!imageUrl || frameSize === 0} onChange={(event) => setFrameColor(event.target.value)} className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent" aria-label="फ्रेमचा रंग" />
+              </label>
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>फ्रेमची जाडी</span><span>{frameSize}%</span></span>
+                <input type="range" min="0" max="5" step="0.5" value={frameSize} disabled={!imageUrl} onChange={(event) => setFrameSize(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
+            </section>
+
+            <section className="hud-panel space-y-3 p-4">
               <div className="text-sm font-semibold">फिल्टर्स</div>
               <div className="grid grid-cols-2 gap-2">
                 {([
@@ -319,6 +351,20 @@ export function PhotoEditorPage() {
               </div>
             </section>
 
+            <section className="hud-panel space-y-3 p-4">
+              <div className="text-sm font-semibold">Save पर्याय</div>
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span>फाईल प्रकार</span>
+                <select value={exportFormat} disabled={!imageUrl} onChange={(event) => setExportFormat(event.target.value as 'jpeg' | 'png')} className="rounded-lg px-2 py-2 text-xs" style={controlStyle}>
+                  <option value="jpeg">JPG</option>
+                  <option value="png">PNG</option>
+                </select>
+              </label>
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>JPG गुणवत्ता</span><span>{exportQuality}%</span></span>
+                <input type="range" min="60" max="100" value={exportQuality} disabled={!imageUrl || exportFormat === 'png'} onChange={(event) => setExportQuality(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
+            </section>
             <div className="grid grid-cols-2 gap-2">
               <button disabled={!imageUrl} onClick={resetEdits} className={actionClass} style={controlStyle}><X size={16} /> Reset</button>
               <button disabled={!imageUrl} onClick={savePhoto} className={actionClass + ' font-semibold'} style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)' }}><Download size={16} /> Save फोटो</button>
