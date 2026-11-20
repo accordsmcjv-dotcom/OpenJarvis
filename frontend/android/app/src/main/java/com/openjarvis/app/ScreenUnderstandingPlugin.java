@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.net.Uri;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Matrix;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
@@ -173,11 +174,12 @@ public class ScreenUnderstandingPlugin extends Plugin {
         PdfRenderer.Page page = null;
         try {
             page = pdfRenderer.openPage(pdfPageIndex);
-            int width = Math.max(1, Math.min(page.getWidth(), 1600));
-            int height = Math.max(1, Math.min(page.getHeight(), 2200));
+            float scale = Math.min(1f, Math.min(1600f / page.getWidth(), 2200f / page.getHeight()));
+            int width = Math.max(1, Math.round(page.getWidth() * scale));
+            int height = Math.max(1, Math.round(page.getHeight() * scale));
             Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
-            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            page.render(bitmap, new Rect(0, 0, width, height), null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
             page.close();
             final int currentPage = pdfPageIndex + 1;
             final Bitmap pageBitmap = bitmap;
