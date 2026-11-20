@@ -11,9 +11,9 @@ import { listConnectors } from '../../lib/connectors-api';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 12) return 'शुभ सकाळ';
+  if (hour < 18) return 'शुभ दुपार';
+  return 'शुभ संध्याकाळ';
 }
 
 export function ChatArea() {
@@ -157,14 +157,14 @@ export function ChatArea() {
         >
           <Database size={16} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
           <span style={{ color: 'var(--color-text-secondary)', flex: 1 }}>
-            Connect your data sources (Gmail, iMessage, Slack, etc.) to get personalized answers.
+            वैयक्तिक उत्तरे मिळवण्यासाठी Gmail, मेसेजिंग आणि इतर डेटा स्रोत जोडा.
           </span>
           <button
             onClick={() => navigate('/data-sources')}
             className="px-3 py-1 rounded text-xs font-medium cursor-pointer"
             style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)', border: 'none' }}
           >
-            Connect
+            जोडा
           </button>
           <button
             onClick={() => setBannerDismissed(true)}
@@ -183,9 +183,9 @@ export function ChatArea() {
         {isEmpty ? (
           <div className="shivam-home flex flex-col items-center justify-center h-full px-4">
             <div className="shivam-home-meta">
-              <span className="hud-heartbeat" /> PERSONAL AI SYSTEM
+              <span className="hud-heartbeat" /> वैयक्तिक AI प्रणाली
               <span className="shivam-meta-line" />
-              <span>MK·01</span>
+              <span>SHIVAM·01</span>
             </div>
             <div className="shivam-reactor" aria-hidden="true">
               <div className="shivam-reactor-ring shivam-ring-outer" />
@@ -201,13 +201,13 @@ export function ChatArea() {
               <span className="shivam-orbit-dot shivam-dot-c" />
             </div>
             <div className="shivam-wordmark">SHIVAM</div>
-            <div className="shivam-subtitle">ARTIFICIAL INTELLIGENCE</div>
-            <div className="shivam-ready"><span className="hud-heartbeat" /> SYSTEM ONLINE <span>•</span> READY TO ASSIST</div>
+            <div className="shivam-subtitle">कृत्रिम बुद्धिमत्ता</div>
+            <div className="shivam-ready"><span className="hud-heartbeat" /> प्रणाली सुरू आहे <span>•</span> मदतीसाठी तयार</div>
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
             </h2>
             <p className="text-sm text-center max-w-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
-              Your personal intelligence system. What can I do for you?
+              तुमचा वैयक्तिक AI सहाय्यक. मी तुमची काय मदत करू?
             </p>
 
             {/* Quick action hints */}
@@ -224,7 +224,7 @@ export function ChatArea() {
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
               >
                 <Database size={14} style={{ color: 'var(--color-accent)' }} />
-                Connect Data Sources
+                डेटा स्रोत जोडा
               </button>
               <button
                 onClick={() => { navigate('/data-sources'); setTimeout(() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'messaging' })), 100); }}
@@ -238,7 +238,7 @@ export function ChatArea() {
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
               >
                 <MessageSquare size={14} style={{ color: 'var(--color-accent)' }} />
-                Set Up Messaging Channels
+                मेसेजिंग सुविधा सुरू करा
               </button>
             </div>
           </div>
