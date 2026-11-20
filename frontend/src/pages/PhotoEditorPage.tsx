@@ -21,6 +21,7 @@ export function PhotoEditorPage() {
   const [overlayText, setOverlayText] = useState('');
   const [overlaySize, setOverlaySize] = useState(42);
   const [overlayColor, setOverlayColor] = useState('#ffffff');
+  const [overlayPosition, setOverlayPosition] = useState<'top' | 'center' | 'bottom'>('bottom');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -101,7 +102,12 @@ export function PhotoEditorPage() {
       }
       if (row) rows.push(row);
       const lineHeight = fontSize * 1.25;
-      const startY = canvas.height - Math.max(18, fontSize * 0.45) - (rows.length - 1) * lineHeight;
+      const margin = Math.max(18, fontSize * 0.45);
+      const startY = overlayPosition === 'top'
+        ? margin + fontSize
+        : overlayPosition === 'center'
+          ? (canvas.height - rows.length * lineHeight) / 2 + fontSize
+          : canvas.height - margin - (rows.length - 1) * lineHeight;
       rows.forEach((line, index) => {
         const y = startY + index * lineHeight;
         ctx.strokeText(line, canvas.width / 2, y, maxWidth);
@@ -238,6 +244,14 @@ export function PhotoEditorPage() {
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={controlStyle}
               />
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span>मजकूर कुठे ठेवायचा?</span>
+                <select value={overlayPosition} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlayPosition(event.target.value as 'top' | 'center' | 'bottom')} className="rounded-lg px-2 py-2 text-xs" style={controlStyle}>
+                  <option value="top">वर</option>
+                  <option value="center">मध्यभागी</option>
+                  <option value="bottom">खाली</option>
+                </select>
+              </label>
               <label className="flex items-center justify-between gap-3 text-xs">
                 <span>मजकुराचा रंग</span>
                 <input type="color" value={overlayColor} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlayColor(event.target.value)} className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent" aria-label="मजकुराचा रंग" />
