@@ -11,6 +11,7 @@ import {
   resolveChatEngine,
 } from '../../lib/chat-telemetry';
 import { MicButton } from './MicButton';
+import { useTtsStore } from '../../lib/tts';
 import { useSpeech } from '../../hooks/useSpeech';
 import { registerPlugin } from '@capacitor/core';
 
@@ -189,6 +190,7 @@ export function InputArea() {
     let wakeStartTimer: number | null = null;
     let captureStarted = false;
     let wakeInProgress = false;
+    let wakeCapture: (() => void) | null = null;
     const handleWake = async () => {
       if (!mounted || wakeInProgress) return;
       wakeInProgress = true;
@@ -229,18 +231,24 @@ export function InputArea() {
           void startWakeWordListening();
         }
       };
-      if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
-        const utterance = new SpeechSynthesisUtterance('जी, सांगा. काय मदत करू?');
-        utterance.lang = 'mr-IN'; utterance.rate = 0.95;
-        utterance.onend = () => { void capture(); };
-        utterance.onerror = () => { void capture(); };
-        window.speechSynthesis.cancel(); window.speechSynthesis.speak(utterance);
-        window.setTimeout(() => { if (!captureStarted) void capture(); }, 3500);
-      } else { void capture(); }
+      wakeCapture = () => { void capture(); };
+      // Use SHIVAM's configured Marathi neural voice for the wake acknowledgement.
+      // The fallback timer keeps command capture available if TTS is offline.
+      void useTtsStore.getState().speak('shivam-wake-ack', 'जी, सांगा. काय मदत करू?');
+      window.setTimeout(() => { if (!captureStarted && wakeInProgress) void capture(); }, 4500);
     };
     const handleTtsFinished = () => {
-      if (mounted && speechEnabled) void startWakeWordListening();
-      else announceWakeStatus('off');
+      if (!mounted || !speechEnabled) {
+        announceWakeStatus('off');
+        return;
+      }
+      if (wakeInProgress && wakeCapture) {
+        const capture = wakeCapture;
+        wakeCapture = null;
+        capture();
+        return;
+      }
+      void startWakeWordListening();
     };
     window.addEventListener('shivamTtsFinished', handleTtsFinished);
     window.addEventListener('shivamWakeWord', handleWake);
