@@ -1,5 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { transcribeAudio, fetchSpeechHealth } from '../lib/api';
+
+interface ShivamNativeSpeechApi {
+  recognizeSpeech(): Promise<{ text: string }>;
+  stopSpeechRecognition(): Promise<void>;
+}
+
+const ShivamNativeSpeech = registerPlugin<ShivamNativeSpeechApi>('ShivamWakeWord');
 
 export type SpeechState = 'idle' | 'recording' | 'transcribing';
 
@@ -15,10 +23,16 @@ export function useSpeech() {
   const recognitionErrorRef = useRef<string | null>(null);
   const recognitionEndedRef = useRef(false);
   const recognitionStopRequestedRef = useRef(false);
+  const nativeSpeechPromiseRef = useRef<Promise<{ text: string }> | null>(null);
+  const isNativeAndroid = Capacitor.getPlatform() === 'android';
 
   // Prefer Android/WebView native Speech Recognition for Marathi.
   // Keep the existing backend recorder as a fallback on browsers without it.
   useEffect(() => {
+    if (isNativeAndroid) {
+      setAvailable(true);
+      return;
+    }
     const NativeRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (NativeRecognition) {
       setAvailable(true);
@@ -27,7 +41,7 @@ export function useSpeech() {
     fetchSpeechHealth()
       .then((health) => setAvailable(health.available))
       .catch(() => setAvailable(false));
-  }, []);
+  }, [isNativeAndroid]);
 
   const startRecording = useCallback(async (): Promise<void> => {
     setError(null);
@@ -35,6 +49,22 @@ export function useSpeech() {
     recognitionErrorRef.current = null;
     recognitionEndedRef.current = false;
     recognitionStopRequestedRef.current = false;
+
+    if (isNativeAndroid) {
+      try {
+        const pending = ShivamNativeSpeech.recognizeSpeech();
+        nativeSpeechPromiseRef.current = pending;
+        // Attach a handler immediately to avoid an unhandled rejection while
+        // the UI is waiting for the user to stop the recording.
+        void pending.catch(() => {});
+        setState('recording');
+      } catch (err) {
+        nativeSpeechPromiseRef.current = null;
+        setError(err instanceof Error ? err.message : 'आवाज ओळख सुरू करता आली नाही.');
+        setState('idle');
+      }
+      return;
+    }
 
     const NativeRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (NativeRecognition) {
@@ -94,9 +124,30 @@ export function useSpeech() {
       setError('Microphone access denied');
       setState('idle');
     }
-  }, []);
+  }, [isNativeAndroid]);
 
   const stopRecording = useCallback(async (): Promise<string> => {
+    if (isNativeAndroid) {
+      const pending = nativeSpeechPromiseRef.current;
+      nativeSpeechPromiseRef.current = null;
+      setState('transcribing');
+      if (!pending) {
+        setState('idle');
+        throw new Error('Recording is not active');
+      }
+      try {
+        await ShivamNativeSpeech.stopSpeechRecognition().catch(() => {});
+        const result = await pending;
+        setState('idle');
+        return result.text;
+      } catch (err) {
+        setState('idle');
+        const message = err instanceof Error ? err.message : 'मराठी आवाज ओळखता आला नाही.';
+        setError(message);
+        throw err;
+      }
+    }
+
     const nativeRecognition = recognitionRef.current;
     if (nativeRecognition) {
       setState('transcribing');
@@ -153,7 +204,7 @@ export function useSpeech() {
 
       recorder.stop();
     });
-  }, []);
+  }, [isNativeAndroid]);
 
   return {
     state,
