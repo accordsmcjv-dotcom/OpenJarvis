@@ -26,6 +26,7 @@ interface ScreenUnderstandingApi {
   captureAndReadScreen(): Promise<{ text: string; message: string }>;
   pickImageAndRead(): Promise<{ text: string; message: string }>;
   pickImageAndDescribe(): Promise<{ text: string; message: string }>;
+  pickPdfAndRead(): Promise<{ text: string; message: string; pagesRead?: number; totalPages?: number }>;
 }
 const ScreenUnderstanding = registerPlugin<ScreenUnderstandingApi>('ScreenUnderstanding');
 
@@ -71,6 +72,21 @@ export function SystemPanel() {
       toast.success('स्क्रीनवरील मजकूर वाचला.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'स्क्रीन वाचता आली नाही.');
+    } finally {
+      setScreenBusy(false);
+    }
+  }, [isAndroid, screenBusy]);
+
+  const readPdf = useCallback(async () => {
+    if (!isAndroid || screenBusy) return;
+    setScreenBusy(true);
+    setScreenText('');
+    try {
+      const result = await ScreenUnderstanding.pickPdfAndRead();
+      setScreenText(result.text || 'PDF मधून मजकूर मिळाला नाही.');
+      toast.success(`PDF वाचला. ${result.pagesRead ?? 0} पृष्ठे तपासली.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'PDF वाचता आला नाही.');
     } finally {
       setScreenBusy(false);
     }
@@ -234,6 +250,16 @@ export function SystemPanel() {
           </button>
           <button
             type="button"
+            onClick={readPdf}
+            disabled={!isAndroid || screenBusy}
+            className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium disabled:opacity-50"
+            style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+          >
+            {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+            {screenBusy ? 'PDF वाचत आहे…' : 'PDF / दस्तऐवज वाचा'}
+          </button>
+          <button
+            type="button"
             onClick={readScene}
             disabled={!isAndroid || screenBusy}
             className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium disabled:opacity-50"
@@ -243,7 +269,7 @@ export function SystemPanel() {
             {screenBusy ? 'दृश्य समजून घेत आहे…' : 'फोटोतील वस्तू व दृश्य ओळखा'}
           </button>
           <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            स्क्रीन वाचणे, फोटोतील मजकूर काढणे आणि फोटोतील सामान्य वस्तू/दृश्य ओळखणे ही प्रक्रिया फोनवर होते.
+            स्क्रीन, फोटोतील मजकूर, सामान्य वस्तू/दृश्य आणि PDF मधील मजकूर फोनवर प्रक्रिया होतो. PDF मधील पहिली 10 पाने वाचली जातात.
           </p>
           {screenText && (
             <div className="mt-2 rounded-lg p-2.5 text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
