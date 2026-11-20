@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ImagePlus, RotateCcw, RotateCw, FlipHorizontal, Crop, Download,
-  Sun, Contrast, Palette, SlidersHorizontal, Sparkles, X,
+  Sun, Contrast, Palette, SlidersHorizontal, Sparkles, X, Type,
 } from 'lucide-react';
 
 type Adjustments = { brightness: number; contrast: number; saturation: number };
@@ -18,6 +18,8 @@ export function PhotoEditorPage() {
   const [cropRatio, setCropRatio] = useState<number | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid'>('none');
+  const [overlayText, setOverlayText] = useState('');
+  const [overlaySize, setOverlaySize] = useState(42);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -74,6 +76,38 @@ export function PhotoEditorPage() {
     ctx.scale(flip ? -1 : 1, 1);
     ctx.drawImage(image, sx / scale, sy / scale, sw / scale, sh / scale, -sw / 2, -sh / 2, sw, sh);
     ctx.restore();
+    if (overlayText.trim()) {
+      ctx.save();
+      ctx.filter = 'none';
+      const fontSize = Math.max(12, Math.round(Math.min(canvas.width, canvas.height) * overlaySize / 1000));
+      ctx.font = `600 ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.72)';
+      ctx.lineWidth = Math.max(2, fontSize * 0.12);
+      ctx.fillStyle = '#ffffff';
+      const maxWidth = canvas.width * 0.9;
+      const words = overlayText.trim().split(/\\s+/);
+      const rows: string[] = [];
+      let row = '';
+      for (const word of words) {
+        const next = row ? `${row} ${word}` : word;
+        if (row && ctx.measureText(next).width > maxWidth) {
+          rows.push(row);
+          row = word;
+        } else row = next;
+      }
+      if (row) rows.push(row);
+      const lineHeight = fontSize * 1.25;
+      const startY = canvas.height - Math.max(18, fontSize * 0.45) - (rows.length - 1) * lineHeight;
+      rows.forEach((line, index) => {
+        const y = startY + index * lineHeight;
+        ctx.strokeText(line, canvas.width / 2, y, maxWidth);
+        ctx.fillText(line, canvas.width / 2, y, maxWidth);
+      });
+      ctx.restore();
+    }
   }
 
   function choosePhoto(event: React.ChangeEvent<HTMLInputElement>) {
@@ -91,6 +125,8 @@ export function PhotoEditorPage() {
     setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
+    setOverlayText('');
+    setOverlaySize(42);
     setImageUrl(URL.createObjectURL(file));
     event.target.value = '';
   }
@@ -101,6 +137,8 @@ export function PhotoEditorPage() {
     setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
+    setOverlayText('');
+    setOverlaySize(42);
   }
 
   function savePhoto() {
@@ -185,6 +223,24 @@ export function PhotoEditorPage() {
                   <input type="range" min={min} max={max} value={adjustments[key]} disabled={!imageUrl} onChange={(e) => setAdjustment(key, Number(e.target.value))} className="w-full accent-cyan-500" />
                 </label>
               ))}
+            </section>
+
+            <section className="hud-panel space-y-3 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Type size={16} /> फोटोवर मजकूर</div>
+              <input
+                type="text"
+                value={overlayText}
+                onChange={(event) => setOverlayText(event.target.value)}
+                disabled={!imageUrl}
+                maxLength={100}
+                placeholder="तुमचा मजकूर लिहा..."
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={controlStyle}
+              />
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>मजकुराचा आकार</span><span>{overlaySize}</span></span>
+                <input type="range" min="20" max="90" value={overlaySize} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlaySize(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
             </section>
 
             <section className="hud-panel space-y-3 p-4">
