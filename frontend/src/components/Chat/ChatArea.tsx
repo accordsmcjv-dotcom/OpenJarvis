@@ -67,6 +67,9 @@ export function ChatArea() {
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
   const [notificationAccessGranted, setNotificationAccessGranted] = useState(false);
+  const [notificationReadingEnabled, setNotificationReadingEnabled] = useState(() => {
+    try { return localStorage.getItem('shivam_notification_reading') === 'true'; } catch { return false; }
+  });
   const [lastSmartNotification, setLastSmartNotification] = useState('');
   const previousChargerState = useRef<boolean | null>(null);
   const lowBatteryAlerted = useRef(false);
@@ -201,9 +204,9 @@ export function ChatArea() {
       .then((status) => { if (active) setNotificationAccessGranted(status.granted); })
       .catch(() => undefined);
     void ShivamDevice.addListener('notificationReceived', (event) => {
-      if (!active) return;
+      if (!active || !notificationReadingEnabled) return;
       const packageName = (event.packageName || '').toLowerCase();
-      if (/(bank|banking|wallet|paytm|phonepe|gpay|authenticator|password|credential)/i.test(packageName)) return;
+      if (/(bank|banking|wallet|paytm|phonepe|gpay|authenticator|password|credential|whatsapp|telegram|signal|messenger|messages|sms)/i.test(packageName)) return;
       const title = (event.title || '').trim();
       const body = (event.text || '').trim();
       const message = [title, body].filter(Boolean).join(' — ');
@@ -218,7 +221,7 @@ export function ChatArea() {
       active = false;
       if (listenerHandle) void listenerHandle.remove();
     };
-  }, []);
+  }, [notificationReadingEnabled]);
 
   const enableNotificationAccess = async () => {
     try {
@@ -618,7 +621,15 @@ export function ChatArea() {
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
               <div className="shivam-glass-cell">
                 <span className="shivam-glass-icon">♧</span><span className="shivam-glass-label">SMART NOTIFICATIONS</span>
-                <b>{notificationAccessGranted ? 'ACCESS ENABLED' : 'ACCESS OFF'}</b>
+                <b>{notificationAccessGranted ? 'ACCESS ENABLED' : 'ACCESS OFF'} · {notificationReadingEnabled ? 'VOICE ON' : 'VOICE OFF'}</b>
+                <button type="button" onClick={() => {
+                  const next = !notificationReadingEnabled;
+                  setNotificationReadingEnabled(next);
+                  try { localStorage.setItem('shivam_notification_reading', String(next)); } catch { /* storage may be unavailable */ }
+                  if (!next) setLastSmartNotification('');
+                }} className="text-xs underline" style={{ color: 'var(--color-accent)' }}>
+                  {notificationReadingEnabled ? 'सूचना वाचणे बंद करा' : 'सूचना वाचणे सुरू करा'}
+                </button>
                 {!notificationAccessGranted && <button type="button" onClick={enableNotificationAccess} className="text-xs underline" style={{ color: 'var(--color-accent)' }}>परवानगी सेट करा</button>}
               </div>
               {lastSmartNotification && <div className="shivam-glass-cell"><span className="shivam-glass-icon">✉</span><span className="shivam-glass-label">LAST NOTIFICATION</span><b>{lastSmartNotification}</b></div>}
