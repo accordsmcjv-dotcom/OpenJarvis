@@ -25,6 +25,7 @@ import { apiFetch } from '../../lib/api';
 interface ScreenUnderstandingApi {
   captureAndReadScreen(): Promise<{ text: string; message: string }>;
   pickImageAndRead(): Promise<{ text: string; message: string }>;
+  pickImageAndDescribe(): Promise<{ text: string; message: string }>;
 }
 const ScreenUnderstanding = registerPlugin<ScreenUnderstandingApi>('ScreenUnderstanding');
 
@@ -75,7 +76,7 @@ export function SystemPanel() {
     }
   }, [isAndroid, screenBusy]);
 
-  const readImage = useCallback(async () => {
+  const readScene = useCallback(async () => {\n    if (!isAndroid || screenBusy) return;\n    setScreenBusy(true);\n    setScreenText('');\n    try {\n      const result = await ScreenUnderstanding.pickImageAndDescribe();\n      setScreenText(result.text || 'फोटोतील दृश्य ओळखता आले नाही.');\n      toast.success('फोटोतील दृश्याचे विश्लेषण पूर्ण.');\n    } catch (error) {\n      toast.error(error instanceof Error ? error.message : 'फोटोचे विश्लेषण करता आले नाही.');\n    } finally {\n      setScreenBusy(false);\n    }\n  }, [isAndroid, screenBusy]);\n\n  const readImage = useCallback(async () => {
     if (!isAndroid || screenBusy) return;
     setScreenBusy(true);
     setScreenText('');
@@ -216,8 +217,18 @@ export function SystemPanel() {
             {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
             {screenBusy ? 'फोटो वाचत आहे…' : 'फोटोमधील मजकूर वाचा'}
           </button>
+          <button
+            type="button"
+            onClick={readScene}
+            disabled={!isAndroid || screenBusy}
+            className="w-full mt-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium disabled:opacity-50"
+            style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+          >
+            {screenBusy ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+            {screenBusy ? 'दृश्य समजून घेत आहे…' : 'फोटोतील वस्तू व दृश्य ओळखा'}
+          </button>
           <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            स्क्रीन वाचण्यासाठी Android परवानगी लागेल. फोटोतील मराठी आणि इंग्रजी मजकूर फोनवरच वाचला जातो.
+            स्क्रीन वाचणे, फोटोतील मजकूर काढणे आणि फोटोतील सामान्य वस्तू/दृश्य ओळखणे ही प्रक्रिया फोनवर होते.
           </p>
           {screenText && (
             <div className="mt-2 rounded-lg p-2.5 text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
