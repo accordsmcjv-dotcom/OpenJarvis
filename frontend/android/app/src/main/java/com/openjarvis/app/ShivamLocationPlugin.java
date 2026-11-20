@@ -52,10 +52,12 @@ public class ShivamLocationPlugin extends Plugin {
                 call.reject("फोनचे Location सेवा उपलब्ध नाही.");
                 return;
             }
-            String provider = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            boolean fineGranted = getContext().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            String provider = fineGranted && manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
                 ? LocationManager.GPS_PROVIDER : LocationManager.NETWORK_PROVIDER;
             if (!manager.isProviderEnabled(provider)) {
-                call.reject("फोनची Location/GPS सुविधा सुरू करा.");
+                call.reject("फोनची Location सुविधा सुरू करा किंवा अचूक स्थानाची परवानगी द्या.");
                 return;
             }
 
