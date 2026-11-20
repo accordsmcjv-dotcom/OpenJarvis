@@ -18,7 +18,7 @@ const ShivamLocation = registerPlugin<ShivamLocationPlugin>('ShivamLocation');
 
 interface ShivamDevicePlugin {
   getTelemetry(): Promise<{
-    batteryPercent?: number; charging?: boolean; batteryTemperatureC?: number;
+    batteryPercent?: number; charging?: boolean; chargerConnected?: boolean; batteryTemperatureC?: number;
     storageFreeGb?: number; storageTotalGb?: number;
     memoryAvailableGb?: number; memoryTotalGb?: number; lowMemory?: boolean;
     thermalStatus?: string; deviceModel?: string; androidVersion?: string;
@@ -60,6 +60,7 @@ export function ChatArea() {
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
+  const previousChargerState = useRef<boolean | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -183,6 +184,14 @@ export function ChatArea() {
         const info = await ShivamDevice.getTelemetry();
         if (!cancelled) {
           setDeviceTelemetry(info);
+          if (typeof info.chargerConnected === 'boolean') {
+            const previous = previousChargerState.current;
+            if (previous !== null && previous !== info.chargerConnected) {
+              const message = info.chargerConnected ? 'चार्जर जोडला गेला आहे.' : 'चार्जर काढला गेला आहे.';
+              void useTtsStore.getState().speak(`charger-${info.chargerConnected ? 'connected' : 'disconnected'}-${Date.now()}`, message);
+            }
+            previousChargerState.current = info.chargerConnected;
+          }
           if (typeof info.batteryPercent === 'number') setBatteryLevel(info.batteryPercent);
           if (typeof info.charging === 'boolean') setBatteryCharging(info.charging);
         }
@@ -191,7 +200,7 @@ export function ChatArea() {
       }
     };
     void refreshTelemetry();
-    const timer = window.setInterval(refreshTelemetry, 30_000);
+    const timer = window.setInterval(refreshTelemetry, 3_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
