@@ -83,7 +83,7 @@ def save_approvals(data):
 def create_approval(app_name):
     import datetime
     import uuid
-    allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"}
+    allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone", "maps", "calendar", "contacts", "messages", "clock", "files"}
     if not isinstance(app_name, str) or app_name.strip().lower() not in allowed_apps:
         raise ValueError("हे App परवानगी यादीत नाही.")
     app_name = app_name.strip().lower()
@@ -1810,7 +1810,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 return
 
             payload = action.get("payload", {})
-            allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"}
+            allowed_apps = {"chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone", "maps", "calendar", "contacts", "messages", "clock", "files"}
             if (
                 not isinstance(payload, dict)
                 or set(payload) != {"app_name"}
@@ -2003,7 +2003,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                             "properties": {
                                 "app_name": {
                                     "type": "string",
-                                    "enum": ["chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone"]
+                                    "enum": ["chrome", "youtube", "gmail", "whatsapp", "camera", "settings", "phone", "maps", "calendar", "contacts", "messages", "clock", "files"]
                                 }
                             },
                             "required": ["app_name"],
