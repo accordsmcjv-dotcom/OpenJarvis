@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScreenUnderstandingPlugin.class);
         registerPlugin(ContactsCallPlugin.class);
         registerPlugin(ShivamLocationPlugin.class);
+        registerPlugin(ShivamDevicePlugin.class);
         super.onCreate(savedInstanceState);
         Intent launchIntent = getIntent();
         boolean launchedByWakeWord = launchIntent != null
