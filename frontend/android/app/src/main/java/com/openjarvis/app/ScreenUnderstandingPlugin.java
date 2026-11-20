@@ -91,6 +91,9 @@ public class ScreenUnderstandingPlugin extends Plugin {
 
     private void finishWithError(String message) {
         if (timeout != null) handler.removeCallbacks(timeout);
+        try {
+            getContext().stopService(new Intent(getContext(), ShivamScreenCaptureService.class));
+        } catch (Exception ignored) {}
         unregisterResultReceiver();
         PluginCall call = pendingCall;
         pendingCall = null;
