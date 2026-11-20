@@ -814,7 +814,26 @@
 .shivam-ready { display:flex; align-items:center; gap:9px; margin-top:17px; color:rgba(114,222,255,.78); font:9px var(--font-hud); letter-spacing:.14em; }
 .shivam-ready > span:not(.hud-heartbeat) { color:rgba(114,222,255,.38); }
 .shivam-quick-actions { flex-wrap:wrap; justify-content:center; }
+
+.shivam-home { transition: filter 360ms ease; }
+.shivam-home-listening { filter: drop-shadow(0 0 22px rgba(34,211,238,.12)); }
+.shivam-home-listening .shivam-reactor-ring { border-color:rgba(93,230,255,.58); }
+.shivam-home-listening .shivam-ring-outer { animation-duration:12s; }
+.shivam-home-listening .shivam-reactor-core,
+.shivam-home-listening .shivam-reactor::before { animation-duration:1.05s; }
+.shivam-home-thinking .shivam-reactor-core { box-shadow:0 0 24px rgba(0,190,255,.65),0 0 72px rgba(0,145,255,.38),inset 0 0 24px rgba(65,207,255,.38); }
+.shivam-home-executing .shivam-ring-outer { animation-duration:7s; border-color:rgba(130,236,255,.72); }
+.shivam-home-executing .shivam-ring-mid { animation-duration:4s; }
+.shivam-home-executing .shivam-reactor-core { animation-duration:.72s; }
+.shivam-voice-wave { height:22px; display:flex; align-items:center; justify-content:center; gap:4px; margin-top:13px; opacity:.82; }
+.shivam-voice-wave span { width:2px; height:4px; border-radius:3px; background:linear-gradient(180deg,#a8f1ff,#22d3ee); box-shadow:0 0 8px rgba(34,211,238,.65); transform-origin:center; }
+.shivam-home-listening .shivam-voice-wave span { animation:shivam-wave .72s ease-in-out infinite alternate; }
+.shivam-home-thinking .shivam-voice-wave span,
+.shivam-home-executing .shivam-voice-wave span { animation:shivam-wave .42s ease-in-out infinite alternate; }
+.shivam-home-thinking .shivam-voice-wave span:nth-child(3n),
+.shivam-home-executing .shivam-voice-wave span:nth-child(3n) { animation-duration:.28s; }
+@keyframes shivam-wave { from { height:4px; opacity:.45; } to { height:20px; opacity:1; } }
 @keyframes shivam-spin { to { transform:rotate(360deg); } }
 @keyframes shivam-core-pulse { 0%,100% { transform:scale(.97); opacity:.78; } 50% { transform:scale(1.035); opacity:1; } }
 @media (max-width:420px) { .shivam-reactor { width:clamp(174px,48vw,220px); } .shivam-home-meta { margin-bottom:6px; } .shivam-ready { font-size:8px; } }
-@media (prefers-reduced-motion:reduce) { .shivam-ring-outer,.shivam-ring-mid,.shivam-reactor-core,.shivam-reactor::before { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .shivam-ring-outer,.shivam-ring-mid,.shivam-reactor-core,.shivam-reactor::before { animation:none; } .shivam-voice-wave span { animation:none !important; height:4px; } }
