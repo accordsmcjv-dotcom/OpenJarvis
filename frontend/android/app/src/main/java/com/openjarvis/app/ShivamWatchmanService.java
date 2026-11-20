@@ -26,6 +26,8 @@ public class ShivamWatchmanService extends Service {
     public static final String ACTION_STOP = "com.openjarvis.app.WATCHMAN_STOP";
     private static final String CHANNEL_ID = "shivam_watchman";
     private static final int NOTIFICATION_ID = 8401;
+    private static final String PREFS = "shivam_watchman";
+    private static final String PREF_ENABLED = "user_enabled";
     private BroadcastReceiver systemReceiver;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -42,6 +44,13 @@ public class ShivamWatchmanService extends Service {
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_ENABLED, false).apply();
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        if (intent != null && ACTION_START.equals(intent.getAction())) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_ENABLED, true).apply();
+        } else if (!getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_ENABLED, false)) {
             stopSelf();
             return START_NOT_STICKY;
         }
