@@ -48,6 +48,7 @@ export function ChatArea() {
     return () => window.removeEventListener('shivamWakeStatus', handleWakeStatus);
   }, []);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -155,7 +156,7 @@ export function ChatArea() {
   }, [weatherCity, weatherLocation]);
 
   useEffect(() => {
-    type BatteryLike = EventTarget & { level: number; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
+    type BatteryLike = EventTarget & { level: number; charging: boolean; addEventListener: (type: string, listener: EventListener) => void; removeEventListener: (type: string, listener: EventListener) => void };
     type ConnectionLike = EventTarget & { effectiveType?: string; type?: string };
     const nav = navigator as Navigator & {
       getBattery?: () => Promise<BatteryLike>;
@@ -166,7 +167,7 @@ export function ChatArea() {
     let battery: BatteryLike | null = null;
     let active = true;
     const updateBattery = () => {
-      if (battery) setBatteryLevel(Math.round(battery.level * 100));
+      if (battery) { setBatteryLevel(Math.round(battery.level * 100)); setBatteryCharging(battery.charging); }
     };
     const updateNetwork = () => {
       setNetworkOnline(navigator.onLine);
@@ -186,6 +187,7 @@ export function ChatArea() {
       battery = value;
       updateBattery();
       battery.addEventListener('levelchange', updateBattery);
+      battery.addEventListener('chargingchange', updateBattery);
     }).catch(() => setBatteryLevel(null));
     return () => {
       active = false;
@@ -194,6 +196,7 @@ export function ChatArea() {
       window.removeEventListener('offline', updateNetwork);
       connection?.removeEventListener('change', updateNetwork);
       battery?.removeEventListener('levelchange', updateBattery);
+      battery?.removeEventListener('chargingchange', updateBattery);
     };
   }, []);
 
@@ -397,7 +400,7 @@ export function ChatArea() {
             <div className="shivam-glass-hud" aria-label="SHIVAM live device telemetry">
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◈</span><span className="shivam-glass-label">CORE</span><b>ONLINE</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">VOICE</span><b>{reactorState === 'listening' ? 'ACTIVE' : reactorState === 'speaking' ? 'SPEAK' : 'READY'}</b></div>
-              <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}%`}</b></div>
+              <div className="shivam-glass-cell"><span className="shivam-glass-icon">ϟ</span><span className="shivam-glass-label">BATTERY</span><b>{batteryLevel === null ? 'N/A' : `${batteryLevel}% · ${batteryCharging === null ? '—' : batteryCharging ? 'CHARGING' : 'ON BATTERY'}`}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">NETWORK</span><b>{networkOnline ? networkType.toUpperCase() : 'OFFLINE'}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">◷</span><span className="shivam-glass-label">LOCAL TIME</span><b>{hudClock}</b></div>
               <div className="shivam-glass-cell"><span className="shivam-glass-icon">☼</span><span className="shivam-glass-label">WEATHER · {(weatherLocation?.name ?? weatherCity).toUpperCase()}</span><b>{weatherBusy && weatherSummary === 'LOADING' ? 'LOADING' : weatherSummary}</b></div>
