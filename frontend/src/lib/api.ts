@@ -1177,7 +1177,15 @@ export async function fetchPendingApprovals(): Promise<PendingApproval[]> {
 
 export async function approveAction(actionId: string): Promise<void> {
   const res = await apiFetch(`/v1/approvals/${actionId}/approve`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Failed: ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false || data.status === 'failed') {
+    const detail = typeof data.error === 'string'
+      ? data.error
+      : typeof data.result?.error === 'string'
+      ? data.result.error
+      : `HTTP ${res.status}`;
+    throw new Error(detail);
+  }
 }
 
 export async function denyAction(actionId: string): Promise<void> {
