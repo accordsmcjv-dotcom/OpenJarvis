@@ -14,6 +14,11 @@ import {
 import { MicButton } from './MicButton';
 import { useTtsStore } from '../../lib/tts';
 import { useSpeech } from '../../hooks/useSpeech';
+
+interface ShivamNavigationApi {
+  openNavigation(options: { destination: string; mode: 'driving' | 'bicycling' | 'walking' }): Promise<{ opened: boolean; travelMode: string }>;
+}
+const ShivamNavigation = registerPlugin<ShivamNavigationApi>('ShivamDevice');
 import { registerPlugin } from '@capacitor/core';
 
 interface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }
@@ -543,6 +548,29 @@ export function InputArea() {
         }
         return;
       }
+    }
+
+    const navigationIntent = /(कुठे जाय|कसा जाय|कशी जाय|कसे जाय|कसा जाऊ|कशी जाऊ|किती दूर|किती अंतर|किती वेळ|रस्ता दाखव|मार्ग दाखव|नेव्हिगेशन|navigation|navigate|directions|route|location|लोकेशन|जायचं आहे|जायचे आहे|ला जायचं|ला जायचे|रस्ता सांग|दिशा सांग)/.test(normalized)
+      && !/(youtube|यूट्यूब)/.test(normalized);
+    if (navigationIntent) {
+      const mode: 'driving' | 'bicycling' | 'walking' =
+        /(पायी|चालत|walking|walk)/.test(normalized) ? 'walking'
+        : /(बाइक|बाईक|दुचाकी|bike|bicycle|cycling)/.test(normalized) ? 'bicycling' : 'driving';
+      const destination = normalized
+        .replace(/(शिवम|shivam|मला|जरा|कृपया|please|location|लोकेशन|ठिकाण|ठिकाणी|कुठे|कसा|कशी|कसे|जायचं|जायचे|जायचा|जाऊ|जाय|आहे|आहेत|किती|दूर|अंतर|वेळ|लागेल|रस्ता|मार्ग|दाखव|सांग|दिशा|नेव्हिगेशन|navigation|navigate|directions|route|traffic|ट्रॅफिक|गाडीने|कारने|कार|car|driving|drive|पायी|चालत|walking|walk|बाइक|बाईक|दुचाकी|bike|bicycle|cycling|ला|पर्यंत|मला|जायचं आहे|जायचे आहे)/g, ' ')
+        .replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (destination.length < 2) {
+        speakCallReply('शिवम विचारतोय, कुठे जायचे आहे? ठिकाणाचे नाव सांगा.');
+        return;
+      }
+      try {
+        await ShivamNavigation.openNavigation({ destination, mode });
+        const modeLabel = mode === 'walking' ? 'पायी' : mode === 'bicycling' ? 'बाइकने' : 'गाडीने';
+        speakCallReply(`${destination} साठी ${modeLabel} मार्ग Google Maps मध्ये उघडत आहे. तिथे अंतर, अंदाजे वेळ, दिशा आणि उपलब्ध Live Traffic पाहता येईल.`);
+      } catch (error) {
+        speakCallReply(error instanceof Error ? error.message : 'Navigation सुरू करता आले नाही. Location आणि Google Maps तपासा.');
+      }
+      return;
     }
 
     const youtubeIntent = /(youtube|यूट्यूब|यु ट्यूब)/.test(normalized)
