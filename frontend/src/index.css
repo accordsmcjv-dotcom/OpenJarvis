@@ -906,3 +906,9 @@
 .shivam-weather-day b { color:#c9f5ff; font-size:11px; font-weight:600; }
 .shivam-weather-day small { color:rgba(93,201,255,.72); font-size:7px; white-space:nowrap; }
 @media (max-width:420px) { .shivam-weather-forecast { gap:3px; } .shivam-weather-day { padding:6px 1px; font-size:7px; } .shivam-weather-day b { font-size:10px; } }
+
+
+/* SHIVAM proactive weather advisory */
+.shivam-weather-alert { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; width:min(100%,620px); margin:9px auto 0; padding:8px 10px; border:1px solid rgba(245,190,90,.28); border-radius:8px; background:linear-gradient(100deg,rgba(115,75,18,.16),rgba(4,25,42,.32)); color:rgba(255,220,160,.88); font:9px var(--font-hud); text-align:center; }
+.shivam-weather-alert b { color:#ffd99a; letter-spacing:.12em; font-weight:600; }
+.shivam-weather-alert > span:last-child { color:rgba(220,237,245,.82); font-family:var(--font-sans); letter-spacing:0; }
