@@ -38,18 +38,24 @@ public class ShivamWakeWordPlugin extends Plugin {
             call.reject("Microphone permission is required");
             return;
         }
+        getContext().getSharedPreferences("shivam_wake_word", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("enabled", true).apply();
         Intent intent = new Intent(getContext(), ShivamWakeWordService.class);
         intent.setAction(ShivamWakeWordService.ACTION_START);
         try {
             ContextCompat.startForegroundService(getContext(), intent);
             call.resolve();
         } catch (Exception e) {
+            getContext().getSharedPreferences("shivam_wake_word", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("enabled", false).apply();
             call.reject("Could not start voice service: " + e.getMessage());
         }
     }
 
     @PluginMethod
     public void stopListening(PluginCall call) {
+        getContext().getSharedPreferences("shivam_wake_word", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("enabled", false).apply();
         getContext().stopService(new Intent(getContext(), ShivamWakeWordService.class));
         call.resolve();
     }
