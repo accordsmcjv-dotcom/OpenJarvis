@@ -435,7 +435,7 @@ def add_note(text, title=""):
         "id": str(uuid.uuid4()),
         "title": title,
         "text": text,
-        "created_at": datetime.now().astimezone().isoformat(timespec="seconds")
+        "created_at": datetime.datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     }
     notes.append(note)
     _write_notes(notes)
@@ -878,7 +878,7 @@ def list_memory_backups():
             "file": filename,
             "valid_json": valid,
             "size_bytes": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+            "modified": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
         })
 
     return {"count": len(backups), "backups": backups[:20]}
@@ -889,7 +889,7 @@ def backup_memory_state():
     stage = "backup_start"
     folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
     os.makedirs(folder, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     created = []
 
     for name in ("memory.json", "memory_categories.json"):
