@@ -153,6 +153,7 @@ export function InputArea() {
   useEffect(() => {
     let mounted = true;
     let wakeTimer: number | null = null;
+    let wakeStartTimer: number | null = null;
     let captureStarted = false;
     const handleWake = async () => {
       if (!mounted) return;
@@ -192,12 +193,19 @@ export function InputArea() {
       localStorage.removeItem('shivam-wake-pending');
       window.setTimeout(() => { void handleWake(); }, 500);
     }
-    if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
-    else void ShivamWakeWord.stopListening().catch(() => {});
+    if (speechEnabled) {
+      // Give a cold-start wake event time to begin command capture before restarting the listener.
+      wakeStartTimer = window.setTimeout(() => {
+        if (mounted && !captureStarted) void ShivamWakeWord.startListening().catch(() => {});
+      }, 4500);
+    } else {
+      void ShivamWakeWord.stopListening().catch(() => {});
+    }
     return () => {
       mounted = false;
       window.removeEventListener('shivamWakeWord', handleWake);
       if (wakeTimer !== null) window.clearTimeout(wakeTimer);
+      if (wakeStartTimer !== null) window.clearTimeout(wakeStartTimer);
     };
   }, [speechEnabled, startRecording, stopRecording]);
 
