@@ -124,10 +124,10 @@ public class ShivamScreenCaptureService extends Service {
                         }
                     };
                     devanagariRecognizer.process(input)
-                            .addOnSuccessListener(result -> { devanagariText[0] = result.getText(); anySuccess[0] = true; })
+                            .addOnSuccessListener(result -> { devanagariText[0] = formatScreenLayout(result, bitmap.getWidth(), bitmap.getHeight()); anySuccess[0] = true; })
                             .addOnCompleteListener(task -> combine.run());
                     latinRecognizer.process(input)
-                            .addOnSuccessListener(result -> { latinText[0] = result.getText(); anySuccess[0] = true; })
+                            .addOnSuccessListener(result -> { latinText[0] = formatScreenLayout(result, bitmap.getWidth(), bitmap.getHeight()); anySuccess[0] = true; })
                             .addOnCompleteListener(task -> combine.run());
                 } catch (Exception e) {
                     finish(false, "स्क्रीन वाचताना त्रुटी: " + e.getMessage());
@@ -146,21 +146,32 @@ public class ShivamScreenCaptureService extends Service {
         return START_NOT_STICKY;
     }
 
-    private String formatScreenLayout(String rawText, int width, int height) {
-        if (rawText == null || rawText.trim().isEmpty()) return "";
-        // Preserve the OCR text and add approximate screen regions so SHIVAM can
-        // distinguish headings, central content and bottom navigation/actions.
-        String[] lines = rawText.split("\\n");
+    private String formatScreenLayout(Text result, int width, int height) {
+        if (result == null || result.getText().trim().isEmpty()) return "";
         StringBuilder out = new StringBuilder();
-        out.append("स्क्रीनवरील मजकूर (अंदाजे स्थान):\\n");
+        out.append("स्क्रीनवरील मजकूर व मांडणी:\\n");
         int count = 0;
-        for (String line : lines) {
-            String value = line.trim();
-            if (value.isEmpty()) continue;
+        for (Text.TextBlock block : result.getTextBlocks()) {
+            for (Text.Line line : block.getLines()) {
+                if (count++ >= 80) break;
+                String value = line.getText() == null ? "" : line.getText().trim();
+                if (value.isEmpty()) continue;
+                android.graphics.Rect bounds = line.getBoundingBox();
+                String region = "मधला भाग";
+                if (bounds != null) {
+                    float centerY = (bounds.top + bounds.bottom) / 2f;
+                    if (centerY < height * 0.25f) region = "वरचा भाग";
+                    else if (centerY > height * 0.75f) region = "खालचा भाग";
+                    float x = Math.max(0f, Math.min(100f, bounds.centerX() * 100f / Math.max(1, width)));
+                    float y = Math.max(0f, Math.min(100f, centerY * 100f / Math.max(1, height)));
+                    out.append("• [").append(region).append("; x=")
+                            .append(Math.round(x)).append("%, y=").append(Math.round(y))
+                            .append("%] ").append(value).append("\\n");
+                } else {
+                    out.append("• [").append(region).append("] ").append(value).append("\\n");
+                }
+            }
             if (count >= 80) break;
-            String region = count == 0 ? "वरचा भाग" : "मधला/खालचा भाग";
-            out.append("• [").append(region).append("] ").append(value).append("\\n");
-            count++;
         }
         return out.toString().trim();
     }
