@@ -25,6 +25,7 @@ export function ApprovalBell() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
+  const [actionError, setActionError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -54,9 +55,13 @@ export function ApprovalBell() {
 
   const handleApprove = async (id: string) => {
     setProcessing(p => ({ ...p, [id]: true }));
+    setActionError('');
     try {
       await approveAction(id);
       setApprovals(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'मंजुरीची कृती पूर्ण झाली नाही.');
+      await load();
     } finally {
       setProcessing(p => ({ ...p, [id]: false }));
     }
@@ -64,9 +69,13 @@ export function ApprovalBell() {
 
   const handleDeny = async (id: string) => {
     setProcessing(p => ({ ...p, [id]: true }));
+    setActionError('');
     try {
       await denyAction(id);
       setApprovals(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'मंजुरी नाकारता आली नाही.');
+      await load();
     } finally {
       setProcessing(p => ({ ...p, [id]: false }));
     }
@@ -135,6 +144,20 @@ export function ApprovalBell() {
               </span>
             )}
           </div>
+
+          {actionError && (
+            <div
+              role="alert"
+              className="mx-3 mt-3 rounded-lg px-3 py-2 text-xs"
+              style={{
+                background: 'color-mix(in srgb, var(--color-error) 10%, transparent)',
+                color: 'var(--color-error)',
+                border: '1px solid color-mix(in srgb, var(--color-error) 25%, transparent)',
+              }}
+            >
+              {actionError}
+            </div>
+          )}
 
           {/* Body */}
           <div className="overflow-y-auto flex-1">
