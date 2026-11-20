@@ -1,6 +1,8 @@
 package com.openjarvis.app;
 
 import android.app.ActivityManager;
+import android.app.NotificationManager;
+import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,6 +12,7 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.os.StatFs;
 import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -160,6 +163,34 @@ public class ShivamDevicePlugin extends Plugin {
                 result.put("memoryTotalGb", memory.totalMem / 1073741824.0);
                 result.put("lowMemory", memory.lowMemory);
             }
+
+            AudioManager phoneAudio = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+            String ringerMode = "UNKNOWN";
+            if (phoneAudio != null) {
+                int mode = phoneAudio.getRingerMode();
+                ringerMode = mode == AudioManager.RINGER_MODE_SILENT ? "SILENT"
+                    : mode == AudioManager.RINGER_MODE_VIBRATE ? "VIBRATE" : "NORMAL";
+            }
+            NotificationManager notificationManager = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            boolean dndAccessGranted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && notificationManager != null && notificationManager.isNotificationPolicyAccessGranted();
+            String dndStatus = "UNKNOWN";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && dndAccessGranted) {
+                int filter = notificationManager.getCurrentInterruptionFilter();
+                dndStatus = filter == NotificationManager.INTERRUPTION_FILTER_NONE ? "TOTAL_SILENCE"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_ALARMS ? "ALARMS_ONLY"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_PRIORITY ? "PRIORITY_ONLY"
+                    : filter == NotificationManager.INTERRUPTION_FILTER_ALL ? "OFF" : "UNKNOWN";
+            }
+            PowerManager screenPower = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            boolean screenInteractive = screenPower != null && screenPower.isInteractive();
+            KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+            boolean deviceLocked = keyguard != null && keyguard.isKeyguardLocked();
+            result.put("ringerMode", ringerMode);
+            result.put("dndAccessGranted", dndAccessGranted);
+            result.put("dndStatus", dndStatus);
+            result.put("screenInteractive", screenInteractive);
+            result.put("deviceLocked", deviceLocked);
 
             result.put("deviceModel", Build.MANUFACTURER + " " + Build.MODEL);
             result.put("androidVersion", Build.VERSION.RELEASE);
