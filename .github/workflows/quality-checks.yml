@@ -1,6 +1,9 @@
 name: SHIVAM Quality Checks
 
 on:
+  push:
+    branches:
+      - personal-jarvis
   workflow_dispatch:
 
 permissions:
