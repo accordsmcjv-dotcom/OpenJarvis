@@ -835,6 +835,7 @@ export function InputArea() {
     deepResearch,
     temperature,
     maxTokens,
+    pendingCall,
   ]);
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
