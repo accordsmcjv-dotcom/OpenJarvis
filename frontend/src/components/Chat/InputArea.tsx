@@ -197,8 +197,10 @@ export function InputArea() {
         try {
           await startRecording();
           wakeTimer = window.setTimeout(async () => {
+            let capturedCommand = '';
             try {
-              const command = await stopRecording();
+              capturedCommand = await stopRecording();
+              const command = capturedCommand;
               if (command) {
                 setInput(command);
                 // A wake-word interaction is an explicit hands-free request:
@@ -210,7 +212,7 @@ export function InputArea() {
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
             captureStarted = false;
             wakeInProgress = false;
-            if (!command) void ShivamWakeWord.startListening().catch(() => {});
+            if (!capturedCommand) void ShivamWakeWord.startListening().catch(() => {});
           }, 7000);
         } catch {
           captureStarted = false;
@@ -697,6 +699,7 @@ export function InputArea() {
     deepResearch,
     temperature,
     maxTokens,
+    speechEnabled,
   ]);
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
