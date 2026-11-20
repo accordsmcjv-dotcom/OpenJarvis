@@ -1714,6 +1714,21 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 changed = False
 
                 for action in approvals:
+                    if action.get("status") == "processing":
+                        try:
+                            started = datetime.datetime.fromisoformat(
+                                action.get("processing_at", "").replace("Z", "+00:00")
+                            )
+                            stale = now - started > datetime.timedelta(minutes=2)
+                        except Exception:
+                            stale = True
+                        if stale:
+                            action["status"] = "interrupted"
+                            action["execution_result"] = {
+                                "error": "Server व्यत्ययामुळे मंजुरीची कृती थांबली असू शकते. पुन्हा करण्यापूर्वी Memory किंवा Notes तपासा."
+                            }
+                            changed = True
+                        continue
                     if action.get("status") != "pending":
                         continue
                     try:
@@ -1861,6 +1876,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     self.send_json(404, {"error": "Pending approval not found or already used"})
                     return
                 action["status"] = "processing"
+                action["processing_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 save_approvals(approvals)
 
             try:
