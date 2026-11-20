@@ -200,12 +200,12 @@ public class ContactsCallPlugin extends Plugin {
             } else {
                 Uri uri = Uri.parse("https://wa.me/" + digits + "?text=" + Uri.encode(message));
                 intent = new Intent(Intent.ACTION_VIEW, uri);
+                // Personal WhatsApp only. Never fall back to WhatsApp Business
+                // or a generic handler, so the user's chosen app stays explicit.
                 intent.setPackage("com.whatsapp");
                 if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-                    intent.setPackage("com.whatsapp.w4b");
-                }
-                if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-                    intent.setPackage(null);
+                    call.reject("वैयक्तिक WhatsApp स्थापित नाही. कृपया WhatsApp अॅप तपासा.");
+                    return;
                 }
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
