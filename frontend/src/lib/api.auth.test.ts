@@ -104,7 +104,7 @@ describe('tool credentials', () => {
       TAVILY_API_KEY: true,
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      '/v1/tools/web_search/credentials/status',
+      'http://127.0.0.1:8000/v1/tools/web_search/credentials/status',
       { headers: {} },
     );
   });
@@ -117,7 +117,7 @@ describe('tool credentials', () => {
       TAVILY_API_KEY: 'tvly-test',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/v1/tools/web_search/credentials', {
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/v1/tools/web_search/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ TAVILY_API_KEY: 'tvly-test' }),
@@ -131,7 +131,7 @@ describe('tool credentials', () => {
     await deleteToolCredential('web_search', 'TAVILY_API_KEY');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/v1/tools/web_search/credentials/TAVILY_API_KEY',
+      'http://127.0.0.1:8000/v1/tools/web_search/credentials/TAVILY_API_KEY',
       { method: 'DELETE', headers: {} },
     );
   });
