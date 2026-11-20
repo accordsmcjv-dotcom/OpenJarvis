@@ -39,6 +39,10 @@ public class ShivamWakeWordService extends Service {
     };
     private final Runnable listenTimeout = () -> {
         if (!active || launching) return;
+        // A stalled on-device session may indicate a missing Marathi model.
+        // Switch to Android's standard recognizer instead of retrying the same
+        // unavailable local service forever.
+        if (useOnDeviceRecognizer) useOnDeviceRecognizer = false;
         destroyRecognizer();
         scheduleRestart();
     };
