@@ -1609,6 +1609,10 @@ def create_document_file(arguments):
     import io
     from xml.sax.saxutils import escape
 
+    def xml_safe(value):
+        # XML 1.0 forbids most C0 control characters; strip them before escaping.
+        return "".join(ch for ch in str(value) if ch in "\t\n\r" or 0x20 <= ord(ch) <= 0xD7FF or 0xE000 <= ord(ch) <= 0xFFFD or 0x10000 <= ord(ch) <= 0x10FFFF)
+
     fmt = arguments.get("format")
     title = arguments.get("title", "")
     filename = arguments.get("filename", "")
@@ -1681,9 +1685,9 @@ def create_document_file(arguments):
                 line, style = line[2:], '<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>'
             elif line.startswith("## "):
                 line, style = line[3:], '<w:pPr><w:pStyle w:val="Heading2"/></w:pPr>'
-            text_xml = escape(line).replace("\t", "    ")
+            text_xml = escape(xml_safe(line)).replace("\t", "    ")
             paragraphs.append('<w:p>' + style + '<w:r><w:t xml:space="preserve">' + text_xml + '</w:t></w:r></w:p>')
-        title_xml = '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + escape(title) + '</w:t></w:r></w:p>'
+        title_xml = '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + escape(xml_safe(title)) + '</w:t></w:r></w:p>'
         document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
             + title_xml + "".join(paragraphs) + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>'
@@ -1716,7 +1720,7 @@ def create_document_file(arguments):
         def cell_xml(value, reference):
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 return '<c r="' + reference + '" t="n"><v>' + str(value) + '</v></c>'
-            return '<c r="' + reference + '" t="inlineStr"><is><t xml:space="preserve">' + escape(str(value)) + '</t></is></c>'
+            return '<c r="' + reference + '" t="inlineStr"><is><t xml:space="preserve">' + escape(xml_safe(value)) + '</t></is></c>'
         sheet_rows = ['<row r="1">' + cell_xml(title, "A1") + '</row>']
         if headers:
             sheet_rows.append('<row r="3">' + "".join(cell_xml(value, col_letter(i + 1) + "3") for i, value in enumerate(headers)) + '</row>')
