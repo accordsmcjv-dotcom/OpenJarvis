@@ -283,6 +283,14 @@ export function ChatArea() {
   // Check if any data sources are connected
   const [hasConnectedSources, setHasConnectedSources] = useState<boolean | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [proactiveNoticeDismissed, setProactiveNoticeDismissed] = useState(false);
+  const proactiveNotice = !networkOnline
+    ? { key: 'offline', message: 'इंटरनेट कनेक्शन बंद आहे. ऑनलाइन सुविधा सध्या उपलब्ध नसू शकतात.' }
+    : batteryLevel !== null && batteryLevel <= 20 && batteryCharging === false
+      ? { key: 'battery', message: 'बॅटरी २०% किंवा त्यापेक्षा कमी आहे. फोन चार्ज करण्याची तयारी ठेवा.' }
+      : weatherAlert
+        ? { key: 'weather', message: weatherAlert }
+        : null;
 
   useEffect(() => {
     listConnectors()
@@ -363,6 +371,27 @@ export function ChatArea() {
             onClick={() => setBannerDismissed(true)}
             className="p-1 rounded cursor-pointer"
             style={{ color: 'var(--color-text-tertiary)', background: 'transparent', border: 'none' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {proactiveNotice && !proactiveNoticeDismissed && (
+        <div
+          className="mx-4 mb-2 flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm shrink-0"
+          role="status"
+          style={{ background: 'var(--color-accent-subtle)', border: '1px solid var(--color-border)' }}
+        >
+          <span aria-hidden="true">✦</span>
+          <span style={{ color: 'var(--color-text-secondary)', flex: 1 }}>
+            <b style={{ color: 'var(--color-text-primary)' }}>SHIVAM सूचना · </b>{proactiveNotice.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setProactiveNoticeDismissed(true)}
+            className="p-1 rounded cursor-pointer"
+            style={{ color: 'var(--color-text-tertiary)', background: 'transparent', border: 'none' }}
+            aria-label="सूचना बंद करा"
           >
             <X size={14} />
           </button>
