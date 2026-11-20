@@ -587,7 +587,7 @@ def classify_user_intent(text):
     rules = (
         ("memory", ("आठव", "मागे सांगितले", "माझी माहिती", "विसर", "जतन कर", "memory", "remember", "previous conversation")),
         ("calculation", ("किती बेरीज", "गुणाकार", "भागाकार", "हिशोब", "calculate", "calculator", "solve", " + ", " × ", " ÷ ")),
-        ("web_search", ("इंटरनेटवर शोध", "वेब सर्च", "ताजी माहिती", "बातम्या", "शोधून सांग", "search online", "web search", "latest news", "research", "सरकारी योजना", "शासकीय योजना", "योजनेची पात्रता", "योजनेचा अर्ज", "government scheme", "government schemes", "scheme eligibility", "सरकारची योजना", "महाराष्ट्र योजना")),
+        ("web_search", ("इंटरनेटवर शोध", "वेब सर्च", "ताजी माहिती", "बातम्या", "शोधून सांग", "search online", "web search", "latest news", "research", "सरकारी योजना", "शासकीय योजना", "योजनेची पात्रता", "योजनेचा अर्ज", "government scheme", "government schemes", "scheme eligibility", "सरकारची योजना", "महाराष्ट्र योजना", "पीएम किसान", "pm-kisan", "mahadbt", "आयुष्मान", "घरकुल योजना", "शिष्यवृत्ती", "अनुदान योजना", "योजना पात्रता", "योजनेचा लाभ", "scholarship scheme", "pension scheme")),
         ("weather", ("हवामान", "पाऊस", "तापमान", "थंडी", "weather", "forecast")),
         ("time", ("आत्ताची वेळ", "आजची तारीख", "आज कोणता वार", "current time", "today's date")),
         ("device_action", ("उघड", "सुरू कर", "चालू कर", "बंद कर", "लॉन्च", "open app", "close app", "launch")),
