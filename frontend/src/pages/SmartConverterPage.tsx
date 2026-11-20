@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
-  ArrowLeftRight, Banknote, Calculator, Download, FileCog, Image as ImageIcon,
-  RefreshCw, Upload, X,
+  ArrowLeftRight, Banknote, Calculator, FileCog, RefreshCw, Upload, X,
 } from 'lucide-react';
 
 interface ShivamPdfReaderApi {
