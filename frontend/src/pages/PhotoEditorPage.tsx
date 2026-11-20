@@ -15,7 +15,7 @@ export function PhotoEditorPage() {
   const [imageUrl, setImageUrl] = useState('');
   const [rotation, setRotation] = useState(0);
   const [flip, setFlip] = useState(false);
-  const [squareCrop, setSquareCrop] = useState(false);
+  const [cropRatio, setCropRatio] = useState<number | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid'>('none');
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, squareCrop, adjustments, filter]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -48,11 +48,15 @@ export function PhotoEditorPage() {
     const sourceWidth = Math.round(image.naturalWidth * scale);
     const sourceHeight = Math.round(image.naturalHeight * scale);
     let sx = 0, sy = 0, sw = sourceWidth, sh = sourceHeight;
-    if (squareCrop) {
-      const side = Math.min(sourceWidth, sourceHeight);
-      sx = Math.floor((sourceWidth - side) / 2);
-      sy = Math.floor((sourceHeight - side) / 2);
-      sw = side; sh = side;
+    if (cropRatio) {
+      const sourceRatio = sourceWidth / sourceHeight;
+      if (sourceRatio > cropRatio) {
+        sw = Math.round(sourceHeight * cropRatio);
+        sx = Math.floor((sourceWidth - sw) / 2);
+      } else {
+        sh = Math.round(sourceWidth / cropRatio);
+        sy = Math.floor((sourceHeight - sh) / 2);
+      }
     }
 
     const sideways = Math.abs(rotation % 180) === 90;
@@ -84,7 +88,7 @@ export function PhotoEditorPage() {
     setFileName(file.name.replace(/\.[^.]+$/, '') || 'SHIVAM-Edited');
     setRotation(0);
     setFlip(false);
-    setSquareCrop(false);
+    setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
     setImageUrl(URL.createObjectURL(file));
@@ -94,7 +98,7 @@ export function PhotoEditorPage() {
   function resetEdits() {
     setRotation(0);
     setFlip(false);
-    setSquareCrop(false);
+    setCropRatio(null);
     setAdjustments(DEFAULT_ADJUSTMENTS);
     setFilter('none');
   }
@@ -108,7 +112,6 @@ export function PhotoEditorPage() {
     link.click();
   }
 
-  const panelStyle = { background: 'var(--color-surface)', border: '1px solid var(--color-border)' };
   const controlStyle = { background: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)' };
   const actionClass = 'inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors disabled:opacity-40';
   const setAdjustment = (key: keyof Adjustments, value: number) =>
@@ -148,7 +151,7 @@ export function PhotoEditorPage() {
                 <div className="rounded-2xl p-5" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}><ImagePlus size={34} /></div>
                 <div>
                   <p className="font-medium">Edit करण्यासाठी फोटो निवडा</p>
-                  <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Gallery मधून फोटो निवडा किंवा camera ने फोटो घ्या.</p>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Gallery मधून फोटो निवडा.</p>
                 </div>
               </div>
             )}
@@ -161,7 +164,12 @@ export function PhotoEditorPage() {
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setRotation((v) => (v + 270) % 360)}><RotateCcw size={16} /> डावीकडे</button>
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setRotation((v) => (v + 90) % 360)}><RotateCw size={16} /> उजवीकडे</button>
                 <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setFlip((v) => !v)}><FlipHorizontal size={16} /> Flip</button>
-                <button disabled={!imageUrl} className={actionClass} style={{ ...controlStyle, background: squareCrop ? 'var(--color-accent-subtle)' : controlStyle.background, color: squareCrop ? 'var(--color-accent)' : controlStyle.color }} onClick={() => setSquareCrop((v) => !v)}><Crop size={16} /> {squareCrop ? 'Crop काढा' : 'Square crop'}</button>
+                <button disabled={!imageUrl} className={actionClass} style={controlStyle} onClick={() => setCropRatio((v) => v === 1 ? null : 1)}><Crop size={16} /> 1:1 crop</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button disabled={!imageUrl} className={actionClass} style={{ ...controlStyle, color: cropRatio === 0.8 ? 'var(--color-accent)' : controlStyle.color }} onClick={() => setCropRatio((v) => v === 0.8 ? null : 0.8)}>4:5</button>
+                <button disabled={!imageUrl} className={actionClass} style={{ ...controlStyle, color: cropRatio === 16 / 9 ? 'var(--color-accent)' : controlStyle.color }} onClick={() => setCropRatio((v) => v === 16 / 9 ? null : 16 / 9)}>16:9</button>
+                <button disabled={!imageUrl} className={actionClass} style={{ ...controlStyle, color: cropRatio === null ? 'var(--color-accent)' : controlStyle.color }} onClick={() => setCropRatio(null)}>Original</button>
               </div>
             </section>
 
