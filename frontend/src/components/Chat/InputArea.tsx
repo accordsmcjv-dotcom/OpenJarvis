@@ -29,6 +29,27 @@ import type {
 // progress so we can surface "Searching over N items — sync in progress"
 // next to the toggle. Polling is gated on `enabled` so toggling DR off
 // stops the network chatter immediately.
+function speakShivamResponse(markdown: string): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
+  const spoken = markdown
+    .replace(/```[\\s\\S]*?```/g, ' कोड वगळला आहे. ')
+    .replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
+    .replace(/\\[([^\\]]+)\\]\\([^)]*\\)/g, '$1')
+    .replace(/https?:\\/\\/\\S+/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#*_`>~]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim()
+    .slice(0, 5000);
+  if (!spoken) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(spoken);
+  utterance.lang = 'mr-IN';
+  utterance.rate = 0.96;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
 function useResearchCorpusSync(enabled: boolean): {
   syncing: boolean;
   itemsSynced: number;
@@ -98,6 +119,8 @@ export function InputArea() {
   const streamState = useAppStore((s) => s.streamState);
   const messages = useAppStore((s) => s.messages);
   const speechEnabled = useAppStore((s) => s.settings.speechEnabled);
+  const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
+  const voiceAutoplay = useAppStore((s) => s.settings.voiceAutoplay);
   const maxTokens = useAppStore((s) => s.settings.maxTokens);
   const temperature = useAppStore((s) => s.settings.temperature);
   const createConversation = useAppStore((s) => s.createConversation);
@@ -125,6 +148,9 @@ export function InputArea() {
   useEffect(() => {
     if (prevModelRef.current !== selectedModel && streamState.isStreaming) {
       abortRef.current?.abort();
+      if (appState.settings.voiceOutputEnabled && appState.settings.voiceAutoplay && accumulatedContent && !controller.signal.aborted) {
+        speakShivamResponse(accumulatedContent);
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
