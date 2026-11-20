@@ -884,83 +884,173 @@ def list_memory_backups():
 
 
 def backup_memory_state():
-    """Memory बदलण्यापूर्वी सुरक्षित स्थानिक बॅकअप."""
+    """Memory बदलण्यापूर्वी पडताळलेला बॅकअप; जुने बॅकअप कधीही आपोआप हटवू नका."""
+    stage = "backup_start"
     folder = os.path.join(BASE_DIR, "MEMORY_BACKUPS")
     os.makedirs(folder, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    created = []
 
     for name in ("memory.json", "memory_categories.json"):
         source = os.path.join(BASE_DIR, name)
         if not os.path.isfile(source):
+            print("[SHIVAM MEMORY]", stage, name, "not_present")
             continue
-        target = os.path.join(folder, name.replace(".json", "_" + stamp + ".json"))
-        shutil.copy2(source, target)
 
-    for name in ("memory", "memory_categories"):
-        files = sorted(
-            [f for f in os.listdir(folder) if f.startswith(name + "_")],
-            reverse=True
-        )
-        for old in files[10:]:
-            os.remove(os.path.join(folder, old))
+        stage = "backup_" + name
+        with open(source, "r", encoding="utf-8") as src:
+            original = json.load(src)
+        if not isinstance(original, dict):
+            raise ValueError(name + " मध्ये JSON Dictionary अपेक्षित आहे.")
+
+        target_name = name.replace(".json", "_" + stamp + ".json")
+        target = os.path.join(folder, target_name)
+        shutil.copy2(source, target)
+        with open(target, "r", encoding="utf-8") as check:
+            copied = json.load(check)
+        if copied != original:
+            raise IOError("Backup पडताळणी अयशस्वी: " + target_name)
+        created.append(target_name)
+        print("[SHIVAM MEMORY]", stage, "verified", target_name)
+
+    return created
+
+
+def _write_memory_json_atomic(path, data):
+    """त्याच फोल्डरमध्ये temp लिहा, fsync व JSON पडताळणी करूनच replace करा."""
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=BASE_DIR,
+            prefix=".memory-safe-", suffix=".tmp", delete=False
+        ) as temp:
+            temp_path = temp.name
+            json.dump(data, temp, ensure_ascii=False, indent=4)
+            temp.write("\n")
+            temp.flush()
+            os.fsync(temp.fileno())
+
+        with open(temp_path, "r", encoding="utf-8") as check:
+            verified = json.load(check)
+        if verified != data:
+            raise IOError("तात्पुरत्या JSON फाइलची पडताळणी अयशस्वी.")
+
+        os.replace(temp_path, path)
+        temp_path = None
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 def save_memory_item(key, value, category="general"):
-    if not isinstance(key, str) or not isinstance(value, str):
-        return {"error": "Memory माहिती अवैध आहे."}
+    stage = "validate"
+    try:
+        if not isinstance(key, str) or not isinstance(value, str):
+            return {"success": False, "error": "Memory माहिती अवैध आहे.", "stage": stage}
 
-    key = key.strip()[:80]
-    value = " ".join(value.strip().split())[:500]
+        key = key.strip()[:80]
+        value = " ".join(value.strip().split())[:500]
 
-    if not key or not value:
-        return {"error": "Memory Key आणि Value आवश्यक आहेत."}
-    allowed_categories = ("preference", "project", "personal_context", "general")
-    if category in (None, "", "auto"):
-        category = infer_memory_category(key, value)
-    if category not in allowed_categories:
-        return {"error": "Memory Category अवैध आहे."}
-    if is_sensitive_memory(key, value):
-        return {"error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही."}
+        if not key or not value:
+            return {"success": False, "error": "Memory Key आणि Value आवश्यक आहेत.", "stage": stage}
+        allowed_categories = ("preference", "project", "personal_context", "general")
+        if category in (None, "", "auto"):
+            category = infer_memory_category(key, value)
+        if category not in allowed_categories:
+            return {"success": False, "error": "Memory Category अवैध आहे.", "stage": stage}
+        if is_sensitive_memory(key, value):
+            return {"success": False, "error": "संवेदनशील माहिती सुरक्षिततेसाठी Memory मध्ये जतन केली जाणार नाही.", "stage": stage}
 
-    memory = load_json(MEMORY_FILE, {})
-    if not isinstance(memory, dict):
-        memory = {}
+        stage = "read_existing_memory"
+        if os.path.exists(MEMORY_FILE):
+            with open(MEMORY_FILE, "r", encoding="utf-8") as source:
+                memory = json.load(source)
+            if not isinstance(memory, dict):
+                raise ValueError("memory.json मध्ये JSON Dictionary अपेक्षित आहे; मूळ फाइल बदललेली नाही.")
+        else:
+            memory = {}
 
-    normalized_value = " ".join(
-        re.sub(r"[^\w\s]", " ", value.casefold()).split()
-    )
-
-    for existing_key, existing_value in memory.items():
-        if not isinstance(existing_value, str):
-            continue
-
-        existing_normalized = " ".join(
-            re.sub(r"[^\w\s]", " ", existing_value.casefold()).split()
+        normalized_value = " ".join(
+            re.sub(r"[^\w\s]", " ", value.casefold()).split()
         )
-        if existing_normalized == normalized_value:
-            if existing_key == key:
-                return {"result": "हीच Memory आधीपासून जतन आहे. Duplicate तयार केली नाही."}
+        for existing_key, existing_value in memory.items():
+            if not isinstance(existing_value, str):
+                continue
+            existing_normalized = " ".join(
+                re.sub(r"[^\w\s]", " ", existing_value.casefold()).split()
+            )
+            if existing_normalized == normalized_value:
+                if existing_key == key:
+                    return {"success": True, "result": "हीच Memory आधीपासून जतन आहे. Duplicate तयार केली नाही."}
+                return {
+                    "success": True,
+                    "result": "ही माहिती आधीपासून '" + str(existing_key) +
+                              "' या Key खाली जतन आहे. Duplicate तयार केली नाही."
+                }
+
+        if key in memory:
             return {
-                "result": "ही माहिती आधीपासून '" + str(existing_key) +
-                          "' या Key खाली जतन आहे. Duplicate तयार केली नाही."
+                "success": False,
+                "error": "ही Key आधीपासून अस्तित्वात आहे. जुनी माहिती बदलण्यासाठी update_memory_item वापरा.",
+                "stage": "duplicate_key"
             }
 
-    if key in memory:
+        stage = "read_existing_categories"
+        if os.path.exists(MEMORY_CATEGORIES_FILE):
+            with open(MEMORY_CATEGORIES_FILE, "r", encoding="utf-8") as source:
+                categories = json.load(source)
+            if not isinstance(categories, dict):
+                raise ValueError("memory_categories.json मध्ये JSON Dictionary अपेक्षित आहे; मूळ फाइल बदललेली नाही.")
+        else:
+            categories = {}
+
+        stage = "backup"
+        backups = backup_memory_state()
+
+        updated_memory = dict(memory)
+        updated_memory[key] = value
+        updated_categories = dict(categories)
+        updated_categories[key] = category
+
+        stage = "write_memory"
+        _write_memory_json_atomic(MEMORY_FILE, updated_memory)
+        print("[SHIVAM MEMORY]", stage, "success", "entries", len(updated_memory))
+
+        try:
+            stage = "write_categories"
+            _write_memory_json_atomic(MEMORY_CATEGORIES_FILE, updated_categories)
+            print("[SHIVAM MEMORY]", stage, "success", "entries", len(updated_categories))
+        except Exception:
+            stage = "rollback_memory"
+            _write_memory_json_atomic(MEMORY_FILE, memory)
+            print("[SHIVAM MEMORY]", stage, "success")
+            raise
+
+        print("[SHIVAM MEMORY]", "complete", "key_saved", "category", category)
         return {
-            "error": "ही Key आधीपासून अस्तित्वात आहे. जुनी माहिती बदलण्यासाठी update_memory_item वापरा."
+            "success": True,
+            "result": "नवीन Memory सुरक्षितपणे जतन झाली. Category: " + category,
+            "stage": "complete",
+            "backups": backups
         }
 
-    backup_memory_state()
-    memory[key] = value
-    save_json(MEMORY_FILE, memory)
-
-    categories = load_json(MEMORY_CATEGORIES_FILE, {})
-    if not isinstance(categories, dict):
-        categories = {}
-    categories[key] = category
-    save_json(MEMORY_CATEGORIES_FILE, categories)
-
-    return {"result": "नवीन Memory सुरक्षितपणे जतन झाली. Category: " + category}
+    except Exception as exc:
+        print("[SHIVAM MEMORY ERROR]", stage, type(exc).__name__, str(exc)[:300])
+        try:
+            record_recovery_diagnostic("save_memory_item:" + stage, exc)
+        except Exception as diagnostic_error:
+            print("[SHIVAM MEMORY DIAGNOSTIC ERROR]", type(diagnostic_error).__name__)
+        return {
+            "success": False,
+            "error": "Memory जतन करता आली नाही.",
+            "stage": stage,
+            "reason": type(exc).__name__ + ": " + str(exc)[:200],
+            "original_data_preserved": True
+        }
 
 def auto_save_explicit_preference(user_text):
     if not isinstance(user_text, str):
