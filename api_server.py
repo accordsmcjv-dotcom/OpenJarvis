@@ -1633,10 +1633,10 @@ def create_document_file(arguments):
         if not isinstance(row, list) or len(row) > 80 or any(not isinstance(v, (str, int, float)) or isinstance(v, bool) for v in row):
             raise ValueError("Excel मधील डेटा अवैध आहे.")
     if fmt == "excel" and not headers and not rows:
-        csv_text = content.lstrip("\\ufeff")
+        csv_text = content.lstrip("\ufeff")
         if csv_text.strip():
             first_line = csv_text.splitlines()[0]
-            delimiter = "\\t" if "\\t" in first_line else ","
+            delimiter = "\t" if "\t" in first_line else ","
             parsed_rows = [
                 row for row in csv.reader(io.StringIO(csv_text), delimiter=delimiter)
                 if any(cell.strip() for cell in row)
