@@ -511,7 +511,7 @@ export function InputArea() {
       }
       const target = normalized
         .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
-        .replace(/(^|[ ])(ला|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=[ ]|$)/g, ' ').replace(/ला$/g, '')
+        .replace(/(^|[ ])(ला|या|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=[ ]|$)/g, ' ').replace(/ला$/g, '')
         .replace(/[ ]+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
