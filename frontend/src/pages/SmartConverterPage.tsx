@@ -20,6 +20,25 @@ const UNIT_GROUPS: Record<UnitCategory, { label: string; units: Record<string, U
 const CURRENCIES: Record<string, string> = { INR: 'भारतीय रुपया', USD: 'अमेरिकन डॉलर', EUR: 'युरो', GBP: 'ब्रिटिश पाउंड', AED: 'यूएई दिरहम', JPY: 'जपानी येन', CAD: 'कॅनेडियन डॉलर', AUD: 'ऑस्ट्रेलियन डॉलर', CHF: 'स्विस फ्रँक', SGD: 'सिंगापूर डॉलर' };
 const formatNumber = (value: number) => Number.isFinite(value) ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 8 }).format(value) : '—';
 const escapeHtml = (value: string) => value.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] || ch);
+const parseDelimited = (source: string, delimiter: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = '', quoted = false;
+  const input = source.replace(/^\\uFEFF/, '');
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"') {
+      if (quoted && input[i + 1] === '"') { cell += '"'; i++; }
+      else quoted = !quoted;
+    } else if (ch === delimiter && !quoted) { row.push(cell); cell = ''; }
+    else if ((ch === '\\n' || ch === '\\r') && !quoted) {
+      if (ch === '\\r' && input[i + 1] === '\\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+};
+
 
 export function SmartConverterPage() {
   const [tab, setTab] = useState<Tab>('units');
@@ -103,8 +122,12 @@ export function SmartConverterPage() {
     if (!file || !imageUrl) return;
     setFileBusy(true); setFileError('');
     try {
-      const image = new Image(); image.src = imageUrl;
-      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('फोटो उघडता आला नाही.')); });
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('फोटो उघडता आला नाही.'));
+        image.src = imageUrl;
+      });
       const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
       const context = canvas.getContext('2d'); if (!context) throw new Error('फोटो रूपांतरित करता आला नाही.');
       if (format === 'image/jpeg') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); }
@@ -124,8 +147,8 @@ export function SmartConverterPage() {
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(base)}</title><style>body{font:12pt Arial,sans-serif;white-space:pre-wrap;line-height:1.6;margin:2cm}</style></head><body>${escapeHtml(textPreview)}</body></html>`;
       downloadBlob(new Blob([html], { type: 'application/msword;charset=utf-8' }), base + (format === 'doc' ? '.doc' : '.html'));
     } else if (format === 'xls') {
-      const rows = textPreview.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean).map((line) => line.split(file.name.toLowerCase().endsWith('.tsv') ? '\t' : ','));
-      const table = rows.map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell.replace(/^"|"$/g, '').replace(/""/g, '"')) + '</td>').join('') + '</tr>').join('');
+      const rows = parseDelimited(textPreview, file.name.toLowerCase().endsWith('.tsv') ? '\\t' : ',');
+      const table = rows.map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell) + '</td>').join('') + '</tr>').join('');
       const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${table}</table></body></html>`;
       downloadBlob(new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }), base + '.xls');
     } else {
@@ -177,8 +200,8 @@ export function SmartConverterPage() {
       {file && <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--color-bg-tertiary)' }}><div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{file.name}</p><p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{(file.size / 1024).toFixed(1)} KB</p></div><button onClick={() => chooseFile(null)} className="p-2"><X size={17} /></button></div>}
       {imageUrl && !fileError && <div className="rounded-xl overflow-hidden max-h-64 flex justify-center"><img src={imageUrl} alt="निवडलेला फोटो" className="max-h-64 object-contain" /></div>}
       {file && imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['image/jpeg', 'image/png', 'image/webp'] as const).map((format) => <button key={format} disabled={fileBusy} onClick={() => void convertImage(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{fileBusy ? 'रूपांतर सुरू…' : format === 'image/jpeg' ? 'JPG करा' : format === 'image/png' ? 'PNG करा' : 'WebP करा'}</button>)}</div>}
-      {file && textPreview !== '' && !fileError && <div className="flex flex-wrap gap-2">{(['txt', 'doc', 'html'] as const).map((format) => <button key={format} onClick={() => convertText(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{format.toUpperCase()} डाउनलोड</button>)}{/\.(csv|tsv)$/i.test(file.name) && <><button onClick={() => convertText('csv')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>CSV डाउनलोड</button><button onClick={() => convertText('xls')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Excel XLS डाउनलोड</button></>}</div>}
-      {textPreview !== '' && <pre className="max-h-48 overflow-auto rounded-xl p-3 text-xs whitespace-pre-wrap" style={{ background: 'var(--color-bg-tertiary)' }}>{textPreview.slice(0, 5000)}{textPreview.length > 5000 ? '…' : ''}</pre>}
+      {file && !imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['txt', 'doc', 'html'] as const).map((format) => <button key={format} onClick={() => convertText(format)} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{format.toUpperCase()} डाउनलोड</button>)}{/\.(csv|tsv)$/i.test(file.name) && <><button onClick={() => convertText('csv')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>CSV डाउनलोड</button><button onClick={() => convertText('xls')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Excel XLS डाउनलोड</button></>}</div>}
+      {file && !imageUrl && textPreview !== '' && <pre className="max-h-48 overflow-auto rounded-xl p-3 text-xs whitespace-pre-wrap" style={{ background: 'var(--color-bg-tertiary)' }}>{textPreview.slice(0, 5000)}{textPreview.length > 5000 ? '…' : ''}</pre>}
       {fileError && <p className="text-sm" style={{ color: 'var(--color-error)' }}>{fileError}</p>}
       <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>फाइल रूपांतरण फोन/ब्राउझरमध्येच होते; फाइल सर्व्हरवर अपलोड होत नाही. DOC हे Word-सुसंगत HTML स्वरूप आहे आणि XLS हे Excel-सुसंगत HTML टेबल स्वरूप आहे. PDF किंवा विद्यमान DOCX/XLSX फाइल थेट वाचणे/रूपांतरित करणे सध्या समर्थित नाही.</p>
     </section>}
