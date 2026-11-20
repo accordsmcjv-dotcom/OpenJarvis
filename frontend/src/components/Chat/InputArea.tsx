@@ -191,6 +191,13 @@ export function InputArea() {
     }
   }, [speechError]);
 
+  // Keep the home-screen hologram in sync with manual microphone use too,
+  // not only the always-on wake-word service.
+  useEffect(() => {
+    if (speechState === 'recording') announceWakeStatus('capturing');
+    else if (speechState === 'transcribing') announceWakeStatus('thinking');
+  }, [speechState]);
+
 
   // Android foreground microphone service keeps wake-word detection active
   // with screen locked; Android shows an ongoing microphone notification.
