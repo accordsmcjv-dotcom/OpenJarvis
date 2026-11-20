@@ -28,6 +28,7 @@ export function PhotoEditorPage() {
   const [frameColor, setFrameColor] = useState('#ffffff');
   const [frameSize, setFrameSize] = useState(0);
   const [vignette, setVignette] = useState(0);
+  const [blur, setBlur] = useState(0);
   const [exportFormat, setExportFormat] = useState<'jpeg' | 'png'>('jpeg');
   const [exportQuality, setExportQuality] = useState(94);
   const [error, setError] = useState('');
@@ -44,7 +45,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize, vignette]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition, frameColor, frameSize, vignette, blur]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -79,7 +80,7 @@ export function PhotoEditorPage() {
     const tone = filter === 'warm' ? 'sepia(0.28) saturate(1.12)' :
       filter === 'mono' ? 'grayscale(1)' :
       filter === 'vivid' ? 'saturate(1.45) contrast(1.08)' : '';
-    ctx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%) ${tone}`;
+    ctx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%) ${tone} blur(${blur}px)`;
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate((rotation * Math.PI) / 180);
@@ -182,6 +183,7 @@ export function PhotoEditorPage() {
     setFrameSize(0);
     setFrameColor('#ffffff');
     setVignette(0);
+    setBlur(0);
     setExportFormat('jpeg');
     setExportQuality(94);
     setImageUrl(URL.createObjectURL(file));
@@ -202,6 +204,7 @@ export function PhotoEditorPage() {
     setFrameSize(0);
     setFrameColor('#ffffff');
     setVignette(0);
+    setBlur(0);
   }
 
   function savePhoto() {
@@ -343,6 +346,13 @@ export function PhotoEditorPage() {
               <button type="button" disabled={!imageUrl || !sticker} onClick={() => setSticker('')} className={actionClass} style={controlStyle}>Sticker काढा</button>
             </section>
 
+            <section className="hud-panel space-y-3 p-4">
+              <div className="text-sm font-semibold">Blur Effect</div>
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>फोटो Blur</span><span>{blur}px</span></span>
+                <input type="range" min="0" max="8" step="0.5" value={blur} disabled={!imageUrl} onChange={(event) => setBlur(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
+            </section>
             <section className="hud-panel space-y-3 p-4">
               <div className="text-sm font-semibold">Vignette Effect</div>
               <label className="block space-y-1">
