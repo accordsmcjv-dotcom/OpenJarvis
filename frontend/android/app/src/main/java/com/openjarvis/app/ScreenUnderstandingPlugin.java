@@ -5,6 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.graphics.Bitmap;
+import com.google.mlkit.vision.label.ImageLabel;
+import com.google.mlkit.vision.label.ImageLabeler;
+import com.google.mlkit.vision.label.ImageLabeling;
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Handler;
@@ -32,6 +37,7 @@ public class ScreenUnderstandingPlugin extends Plugin {
     private Runnable timeout;
     private TextRecognizer imageDevanagariRecognizer;
     private TextRecognizer imageLatinRecognizer;
+    private ImageLabeler imageLabeler;
 
     @PluginMethod
     public void captureAndReadScreen(PluginCall call) {
@@ -64,6 +70,68 @@ public class ScreenUnderstandingPlugin extends Plugin {
         } catch (Exception e) {
             pendingCall = null;
             call.reject("फोटो निवडता आला नाही: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void pickImageAndDescribe(PluginCall call) {
+        if (pendingCall != null) {
+            call.reject("दुसरी वाचन विनंती आधीच सुरू आहे.");
+            return;
+        }
+        pendingCall = call;
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("image/*");
+        try {
+            startActivityForResult(call, picker, "imageDescriptionResult");
+        } catch (Exception e) {
+            pendingCall = null;
+            call.reject("फोटो निवडता आला नाही: " + e.getMessage());
+        }
+    }
+
+    @ActivityCallback
+    private void imageDescriptionResult(PluginCall call, ActivityResult result) {
+        if (pendingCall == null) return;
+        if (result == null || result.getResultCode() != android.app.Activity.RESULT_OK
+                || result.getData() == null || result.getData().getData() == null) {
+            finishWithError("फोटो निवडणे रद्द केले.");
+            return;
+        }
+        try {
+            InputImage image = InputImage.fromFilePath(getContext(), result.getData().getData());
+            imageLabeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS);
+            timeout = () -> finishWithError("फोटोचे विश्लेषण करण्यासाठी वेळ लागला. पुन्हा प्रयत्न करा.");
+            handler.postDelayed(timeout, 20000);
+            imageLabeler.process(image)
+                    .addOnSuccessListener(labels -> {
+                        if (timeout != null) handler.removeCallbacks(timeout);
+                        StringBuilder description = new StringBuilder();
+                        for (ImageLabel label : labels) {
+                            if (label.getConfidence() >= 0.45f) {
+                                if (description.length() > 0) description.append("\\n");
+                                description.append(label.getText()).append(" (")
+                                        .append(Math.round(label.getConfidence() * 100)).append("%)");
+                            }
+                        }
+                        closeImageLabeler();
+                        PluginCall pending = pendingCall;
+                        pendingCall = null;
+                        if (pending == null) return;
+                        if (description.length() == 0) {
+                            pending.reject("फोटोतील वस्तू किंवा दृश्य ओळखता आले नाही.");
+                            return;
+                        }
+                        JSObject response = new JSObject();
+                        response.put("text", description.toString());
+                        response.put("message", "फोटोतील दृश्याचे विश्लेषण पूर्ण.");
+                        pending.resolve(response);
+                    })
+                    .addOnFailureListener(error -> finishWithError("फोटोचे विश्लेषण करता आले नाही: " + error.getMessage()));
+        } catch (Exception e) {
+            closeImageLabeler();
+            finishWithError("फोटो उघडता आला नाही: " + e.getMessage());
         }
     }
 
@@ -165,7 +233,7 @@ public class ScreenUnderstandingPlugin extends Plugin {
         else getContext().registerReceiver(resultReceiver, filter);
     }
 
-    private void closeImageRecognizers() {
+    private void closeImageLabeler() {\n        if (imageLabeler != null) { imageLabeler.close(); imageLabeler = null; }\n    }\n\n    private void closeImageRecognizers() {
         if (imageDevanagariRecognizer != null) { imageDevanagariRecognizer.close(); imageDevanagariRecognizer = null; }
         if (imageLatinRecognizer != null) { imageLatinRecognizer.close(); imageLatinRecognizer = null; }
     }
