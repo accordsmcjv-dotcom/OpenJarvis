@@ -84,17 +84,42 @@ export function SmartConverterPage() {
   };
   useEffect(() => { void loadRate(); }, [baseCurrency, targetCurrency]);
 
-  const chooseFile = (selected: File | null) => {
+  const chooseFile = async (selected: File | null) => {
     setFile(selected); setFileError(''); setPdfNotice(''); setTextPreview('');
     if (!selected) return;
     const isImage = selected.type.startsWith('image/');
     const isText = selected.type.startsWith('text/') || /\.(txt|csv|tsv|md)$/i.test(selected.name);
-    if (!isImage && !isText) {
-      setFileError('सध्या फोटो (JPG, PNG, WebP) आणि मजकूर/CSV फाइल्स इनपुट म्हणून समर्थित आहेत. PDF, DOCX आणि XLSX इनपुट अद्याप समर्थित नाहीत.');
+    const isOffice = /\.(docx|xlsx)$/i.test(selected.name);
+    if (!isImage && !isText && !isOffice) {
+      setFileError('फोटो, मजकूर/CSV, DOCX आणि XLSX फाइल्स समर्थित आहेत. PDF साठी खालील PDF वाचन पर्याय वापरा.');
       return;
     }
     if (isImage && selected.size > 20 * 1024 * 1024) { setFileError('फोटो 20 MB पेक्षा लहान निवडा.'); return; }
     if (isText && selected.size > 100 * 1024) { setFileError('मजकूर/CSV फाइल 100 KB पेक्षा लहान निवडा.'); return; }
+    if (isOffice && selected.size > 20 * 1024 * 1024) { setFileError('DOCX/XLSX फाइल 20 MB पेक्षा लहान निवडा.'); return; }
+    if (isOffice) {
+      setFileBusy(true);
+      try {
+        const response = await apiFetch('/v1/converter/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(selected.name) },
+          body: selected,
+        });
+        const result = await response.json();
+        if (!response.ok || typeof result?.text !== 'string') throw new Error(result?.error || 'फाइलमधील मजकूर काढता आला नाही.');
+        const extractedFile = new File([result.text], result.filename || 'Extracted.txt', {
+          type: result.format === 'csv' ? 'text/csv' : 'text/plain',
+        });
+        setFile(extractedFile);
+        setTextPreview(result.text);
+        setPdfNotice(result.format === 'csv' ? 'Excel मधील पहिल्या शीटचा डेटा CSV स्वरूपात काढला.' : 'Word फाइलमधील मजकूर काढला.');
+      } catch (error) {
+        setFileError(error instanceof Error ? error.message : 'फाइल वाचता आली नाही.');
+      } finally {
+        setFileBusy(false);
+      }
+      return;
+    }
     if (isText) {
       const reader = new FileReader();
       reader.onload = () => setTextPreview(String(reader.result || ''));
@@ -217,7 +242,7 @@ export function SmartConverterPage() {
 
     {tab === 'files' && <section className="rounded-2xl p-4 md:p-6 flex flex-col gap-4" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
       <div><h2 className="font-semibold">File Converter</h2><p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>फोटो, मजकूर आणि CSV फाइल्सचे रूपांतर</p></div>
-      <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,text/plain,text/csv,.txt,.csv,.tsv,.md" className="hidden" onChange={(e) => chooseFile(e.target.files?.[0] || null)} />
+      <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,text/plain,text/csv,.txt,.csv,.tsv,.md,.docx,.xlsx" className="hidden" onChange={(e) => chooseFile(e.target.files?.[0] || null)} />
       <button onClick={() => fileInput.current?.click()} className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-6 text-sm" style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}><Upload size={24} />फाइल निवडा (कमाल 20 MB)</button>
       {Capacitor.isNativePlatform() && <button disabled={pdfBusy || fileBusy} onClick={() => void readPdf()} className="rounded-xl px-4 py-3 text-sm disabled:opacity-50" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{pdfBusy ? 'PDF वाचत आहे…' : 'PDF मधून मजकूर काढा (कमाल 10 पाने)'}</button>}
       {pdfNotice && <p className="text-xs" style={{ color: 'var(--color-success, var(--color-accent))' }}>{pdfNotice}</p>}
@@ -227,7 +252,7 @@ export function SmartConverterPage() {
       {file && !imageUrl && !fileError && <div className="flex flex-wrap gap-2">{(['txt', 'docx', 'html'] as const).map((format) => <button key={format} disabled={fileBusy} onClick={() => void convertText(format)} className="px-4 py-2 rounded-lg text-sm disabled:opacity-50" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>{fileBusy ? 'रूपांतर सुरू…' : format.toUpperCase() + ' डाउनलोड'}</button>)}{/\.(csv|tsv)$/i.test(file.name) && <><button disabled={fileBusy} onClick={() => void convertText('csv')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>CSV डाउनलोड</button><button disabled={fileBusy} onClick={() => void convertText('xlsx')} className="px-4 py-2 rounded-lg text-sm" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Excel XLSX डाउनलोड</button></>}</div>}
       {file && !imageUrl && textPreview !== '' && <pre className="max-h-48 overflow-auto rounded-xl p-3 text-xs whitespace-pre-wrap" style={{ background: 'var(--color-bg-tertiary)' }}>{textPreview.slice(0, 5000)}{textPreview.length > 5000 ? '…' : ''}</pre>}
       {fileError && <p className="text-sm" style={{ color: 'var(--color-error)' }}>{fileError}</p>}
-      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो, TXT, HTML आणि CSV रूपांतरण फोन/ब्राउझरमध्ये होते. खरी DOCX आणि XLSX फाइल तयार करण्यासाठी मजकूर तुमच्या SHIVAM सर्व्हरकडे पाठवला जातो. PDF किंवा विद्यमान DOCX/XLSX फाइल इनपुट म्हणून वाचणे सध्या समर्थित नाही.</p>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>फोटो, TXT, HTML आणि CSV रूपांतरण फोन/ब्राउझरमध्ये होते. खरी DOCX/XLSX फाइल तयार करण्यासाठी मजकूर SHIVAM सर्व्हरकडे पाठवला जातो. DOCX मधून मजकूर आणि XLSX मधील पहिली शीट CSV म्हणून काढता येते. Android वर PDF मधील कमाल 10 पाने OCR ने वाचता येतात.</p>
     </section>}
   </div>;
 }
