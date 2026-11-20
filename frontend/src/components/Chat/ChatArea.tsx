@@ -232,6 +232,19 @@ export function ChatArea() {
     };
   }, [notificationReadingEnabled]);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    const refreshWatchman = () => {
+      void ShivamDevice.getWatchmanStatus()
+        .then((status) => { if (active) setWatchmanEnabled(status.enabled); })
+        .catch(() => undefined);
+    };
+    refreshWatchman();
+    const timer = window.setInterval(refreshWatchman, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
   const toggleWatchman = async () => {
     if (watchmanBusy) return;
     setWatchmanBusy(true);
