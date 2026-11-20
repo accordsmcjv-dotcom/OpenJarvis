@@ -29,8 +29,8 @@ import type {
 // progress so we can surface "Searching over N items — sync in progress"
 // next to the toggle. Polling is gated on `enabled` so toggling DR off
 // stops the network chatter immediately.
-function speakShivamResponse(markdown: string): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
+function speakShivamResponse(markdown: string, onDone?: () => void): boolean {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return false;
   const spoken = markdown
     .replace(/```[\s\S]*?```/g, ' कोड वगळला आहे. ')
     .replace(/!\[([^]]*)]([^)]*)/g, '$1')
@@ -41,13 +41,18 @@ function speakShivamResponse(markdown: string): void {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 5000);
-  if (!spoken) return;
+  if (!spoken) return false;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(spoken);
   utterance.lang = 'mr-IN';
   utterance.rate = 0.96;
   utterance.pitch = 1;
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; onDone?.(); };
+  utterance.onend = finish;
+  utterance.onerror = finish;
   window.speechSynthesis.speak(utterance);
+  return true;
 }
 
 function useResearchCorpusSync(enabled: boolean): {
@@ -205,7 +210,7 @@ export function InputArea() {
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
             captureStarted = false;
             wakeInProgress = false;
-            void ShivamWakeWord.startListening().catch(() => {});
+            if (!command) void ShivamWakeWord.startListening().catch(() => {});
           }, 7000);
         } catch {
           captureStarted = false;
@@ -641,7 +646,12 @@ export function InputArea() {
       }
 
       if (appState.settings.voiceOutputEnabled && appState.settings.voiceAutoplay && accumulatedContent && !controller.signal.aborted) {
-        speakShivamResponse(accumulatedContent);
+        const started = speakShivamResponse(accumulatedContent, () => {
+          if (speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
+        });
+        if (!started && speechEnabled) void ShivamWakeWord.startListening().catch(() => {});
+      } else if (speechEnabled) {
+        void ShivamWakeWord.startListening().catch(() => {});
       }
       updateLastAssistant(
         convId,
