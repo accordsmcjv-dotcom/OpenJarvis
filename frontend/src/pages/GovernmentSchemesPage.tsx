@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Search, Landmark, Sprout, GraduationCap, HeartPulse, House, BriefcaseBusiness, Users, FileText, ShieldCheck } from "lucide-react";
+import { ExternalLink, Search, Landmark, ShieldCheck } from "lucide-react";
 
 type SchemeLink = { name: string; description: string; url: string; category: string; tags: string };
 const schemes: SchemeLink[] = [
