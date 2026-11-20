@@ -157,6 +157,9 @@ public class ContactsCallPlugin extends Plugin {
                 intent = new Intent(Intent.ACTION_VIEW, uri);
                 intent.setPackage("com.whatsapp");
                 if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                    intent.setPackage("com.whatsapp.w4b");
+                }
+                if (intent.resolveActivity(getContext().getPackageManager()) == null) {
                     intent.setPackage(null);
                 }
             }
