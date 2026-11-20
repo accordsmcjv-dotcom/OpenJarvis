@@ -1605,18 +1605,24 @@ def create_document_file(arguments):
     """Create a local DOCX or XLSX using only Python's standard library."""
     import uuid
     import zipfile
+    import csv
+    import io
     from xml.sax.saxutils import escape
 
     fmt = arguments.get("format")
-    title = arguments.get("title", "").strip()
-    filename = arguments.get("filename", "").strip()
+    title = arguments.get("title", "")
+    filename = arguments.get("filename", "")
     content = arguments.get("content", "")
     headers = arguments.get("headers", [])
     rows = arguments.get("rows", [])
     if fmt not in ("word", "excel"):
         raise ValueError("फाइलचा प्रकार Word किंवा Excel असावा.")
-    if not isinstance(title, str) or not title or len(title) > 180:
+    if not isinstance(title, str) or not title.strip() or len(title) > 180:
         raise ValueError("फाइलचे शीर्षक आवश्यक आहे.")
+    title = title.strip()
+    if not isinstance(filename, str):
+        raise ValueError("फाइलचे नाव अवैध आहे.")
+    filename = filename.strip()
     if not isinstance(content, str) or len(content) > 100000:
         raise ValueError("फाइलमधील मजकूर अवैध किंवा खूप मोठा आहे.")
     if not isinstance(headers, list) or len(headers) > 80 or any(not isinstance(x, str) for x in headers):
@@ -1627,13 +1633,31 @@ def create_document_file(arguments):
         if not isinstance(row, list) or len(row) > 80 or any(not isinstance(v, (str, int, float)) or isinstance(v, bool) for v in row):
             raise ValueError("Excel मधील डेटा अवैध आहे.")
     if fmt == "excel" and not headers and not rows:
-        lines = [line.strip() for line in content.splitlines() if line.strip()]
-        if lines:
-            delimiter = "\t" if "\t" in lines[0] else ","
-            headers = [part.strip() for part in lines[0].split(delimiter)]
-            rows = [[part.strip() for part in line.split(delimiter)] for line in lines[1:]]
+        csv_text = content.lstrip("\\ufeff")
+        if csv_text.strip():
+            first_line = csv_text.splitlines()[0]
+            delimiter = "\\t" if "\\t" in first_line else ","
+            parsed_rows = [
+                row for row in csv.reader(io.StringIO(csv_text), delimiter=delimiter)
+                if any(cell.strip() for cell in row)
+            ]
+            if parsed_rows:
+                headers = [cell.strip() for cell in parsed_rows[0]]
+                rows = [[cell.strip() for cell in row] for row in parsed_rows[1:]]
         else:
-            headers, rows = ["माहिती"], [[content or title]]
+            headers, rows = ["माहिती"], [[title]]
+    if len(headers) > 80 or any(not isinstance(x, str) for x in headers):
+        raise ValueError("Excel शीर्षके अवैध आहेत किंवा खूप जास्त आहेत.")
+    if len(rows) > 5000:
+        raise ValueError("Excel मध्ये जास्तीत जास्त 5000 ओळी असू शकतात.")
+    for row in rows:
+        if not isinstance(row, list) or len(row) > 80:
+            raise ValueError("Excel मधील ओळींची रचना अवैध आहे.")
+        for value in row:
+            if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+                raise ValueError("Excel मधील डेटा अवैध आहे.")
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError("Excel मधील संख्या मर्यादेबाहेर आहे.")
     if fmt == "word" and not content.strip():
         raise ValueError("Word फाइलसाठी मजकूर आवश्यक आहे.")
 
