@@ -97,7 +97,7 @@ export function PhotoEditorPage() {
       ctx.lineWidth = Math.max(2, fontSize * 0.12);
       ctx.fillStyle = overlayColor;
       const maxWidth = canvas.width * 0.9;
-      const words = overlayText.trim().split(/\\s+/);
+      const words = overlayText.trim().split(/\s+/);
       const rows: string[] = [];
       let row = '';
       for (const word of words) {
