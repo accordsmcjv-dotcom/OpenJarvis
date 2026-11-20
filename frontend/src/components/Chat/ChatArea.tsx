@@ -61,6 +61,8 @@ export function ChatArea() {
   const [batteryCharging, setBatteryCharging] = useState<boolean | null>(null);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Awaited<ReturnType<ShivamDevicePlugin['getTelemetry']>> | null>(null);
   const previousChargerState = useRef<boolean | null>(null);
+  const lowBatteryAlerted = useRef(false);
+  const fullBatteryAlerted = useRef(false);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -197,6 +199,21 @@ export function ChatArea() {
           }
           if (typeof info.batteryPercent === 'number') setBatteryLevel(info.batteryPercent);
           if (typeof info.charging === 'boolean') setBatteryCharging(info.charging);
+          if (typeof info.batteryPercent === 'number' && typeof info.charging === 'boolean') {
+            if (info.batteryPercent <= 20 && !info.charging && !lowBatteryAlerted.current) {
+              lowBatteryAlerted.current = true;
+              void useTtsStore.getState().speak(`battery-low-${Date.now()}`, `बॅटरी ${info.batteryPercent} टक्के आहे. कृपया फोन चार्ज करा.`);
+            } else if (info.batteryPercent > 25 || info.charging) {
+              lowBatteryAlerted.current = false;
+            }
+
+            if (info.batteryPercent >= 100 && info.charging && !fullBatteryAlerted.current) {
+              fullBatteryAlerted.current = true;
+              void useTtsStore.getState().speak(`battery-full-${Date.now()}`, 'बॅटरी पूर्ण चार्ज झाली आहे. चार्जर काढू शकता.');
+            } else if (info.batteryPercent < 98 || !info.charging) {
+              fullBatteryAlerted.current = false;
+            }
+          }
         }
       } catch {
         if (!cancelled) setDeviceTelemetry(null);
