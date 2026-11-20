@@ -52,9 +52,19 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void startShivamWakeWordService() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
         Intent service = new Intent(this, ShivamWakeWordService.class);
         service.setAction(ShivamWakeWordService.ACTION_START);
-        androidx.core.content.ContextCompat.startForegroundService(this, service);
+        try {
+            androidx.core.content.ContextCompat.startForegroundService(this, service);
+        } catch (SecurityException | IllegalStateException error) {
+            // Permission may have been revoked or Android may reject a
+            // foreground-service start; keep the app usable without wake word.
+            android.util.Log.w("SHIVAM", "Wake-word service could not start", error);
+        }
     }
 
     private void requestShivamPermissions() {
