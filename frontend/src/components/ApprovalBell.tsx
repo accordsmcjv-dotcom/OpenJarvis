@@ -20,6 +20,37 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function approvalTitle(action: PendingApproval): string {
+  const payload = action.payload ?? {};
+  if (action.action_type === 'open_android_app') {
+    const appName = typeof payload.app_name === 'string' ? payload.app_name : '';
+    const appLabels: Record<string, string> = {
+      chrome: 'Chrome', youtube: 'YouTube', gmail: 'Gmail', whatsapp: 'WhatsApp',
+      camera: 'कॅमेरा', settings: 'सेटिंग्ज', phone: 'फोन', maps: 'नकाशे',
+      calendar: 'कॅलेंडर', contacts: 'संपर्क', messages: 'संदेश', clock: 'घड्याळ', files: 'फाइल्स',
+    };
+    return appName ? `${appLabels[appName.toLowerCase()] ?? appName} अॅप उघडण्याची परवानगी` : 'अॅप उघडण्याची परवानगी';
+  }
+  if (action.action_type === 'tool_execution') {
+    const toolName = typeof payload.tool_name === 'string' ? payload.tool_name : '';
+    const labels: Record<string, string> = {
+      save_memory_item: 'मेमरीमध्ये माहिती जतन करणे',
+      update_memory_item: 'मेमरीतील माहिती अद्ययावत करणे',
+      forget_memory_item: 'मेमरीतील माहिती विसरणे',
+      add_note: 'नवीन नोंद जोडणे',
+      delete_note: 'नोंद हटवणे',
+    };
+    return labels[toolName] ?? 'माहितीमध्ये बदल करण्याची परवानगी';
+  }
+  return action.description || 'कृतीसाठी परवानगी';
+}
+
+function approvalDescription(action: PendingApproval): string {
+  if (action.action_type === 'open_android_app') return 'मंजुरी दिल्यावर निवडलेले अॅप उघडले जाईल.';
+  if (action.action_type === 'tool_execution') return 'मंजुरी दिल्यावर निवडलेली माहिती जतन, बदल किंवा हटवली जाईल.';
+  return action.description;
+}
+
 export function ApprovalBell() {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [open, setOpen] = useState(false);
@@ -189,7 +220,7 @@ export function ApprovalBell() {
                         className="text-[11px] font-mono font-semibold"
                         style={{ color: 'var(--color-accent)' }}
                       >
-                        {action.action_type}
+                        {approvalTitle(action)}
                       </span>
                       <div className="flex items-center gap-2">
                         <span
@@ -213,7 +244,7 @@ export function ApprovalBell() {
                       className="text-[13px] mb-2.5 leading-snug"
                       style={{ color: 'var(--color-text)' }}
                     >
-                      {action.description}
+                      {approvalDescription(action)}
                     </p>
 
                     {/* Expandable payload */}
