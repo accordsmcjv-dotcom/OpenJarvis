@@ -2671,16 +2671,13 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 result = {"error": "Tool चालवताना त्रुटी आली. कृपया पुन्हा प्रयत्न करा."}
 
                             latency = int((__import__("time").time() - started) * 1000)
-                            tool_payload = result.get("result", result)
-                            pending = isinstance(tool_payload, dict) and tool_payload.get("pending_approval", False)
-                            nested_error = isinstance(tool_payload, dict) and bool(tool_payload.get("error"))
-                            nested_failed = isinstance(tool_payload, dict) and tool_payload.get("success") is False
-                            success = "error" not in result and not nested_error and not nested_failed and not pending
+                            verification = verify_tool_result(result)
+                            pending = verification["status"] == "pending_approval"
 
                             end_event = {
                                 "tool": tool_name,
-                                "success": success,
-                                "status": "pending_approval" if pending else ("success" if success else "error"),
+                                "success": verification["success"],
+                                "status": verification["status"],
                                 "result": result.get("result", result.get("answer", result.get("error", result))),
                                 "latency": latency
                             }
