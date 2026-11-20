@@ -975,7 +975,7 @@ export function InputArea() {
                   if (!response.ok) throw new Error('फाइल डाउनलोड करता आली नाही.');
                   const fileBlob = await response.blob();
                   const objectUrl = URL.createObjectURL(fileBlob);
-                  accumulatedContent += '\\n\\n[' + fileName + ' डाउनलोड करा](' + objectUrl + ')';
+                  accumulatedContent += '\n\n[' + fileName + ' डाउनलोड करा](' + objectUrl + ')';
                   updateLastAssistant(convId, accumulatedContent, [...toolCalls]);
                 }).catch(() => {
                   toast.error('फाइल तयार झाली; पण डाउनलोड लिंक उघडता आली नाही. पुन्हा प्रयत्न करा.');
