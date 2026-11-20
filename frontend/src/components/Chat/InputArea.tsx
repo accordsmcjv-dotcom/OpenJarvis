@@ -6,7 +6,7 @@ import { streamChat, streamResearch } from '../../lib/sse';
 import { fetchSavings, getBase } from '../../lib/api';
 import { listConnectors, getSyncStatus } from '../../lib/connectors-api';
 import { serializeToolCallArguments } from '../../lib/tool-call';
-import { findShivamContacts, placeShivamCall, openShivamMessageComposer, sendShivamSms, type ShivamContact } from '../../lib/shivam-calls';
+import { findShivamContacts, placeShivamCall, openShivamMessageComposer, sendShivamSms, searchShivamYouTube, type ShivamContact } from '../../lib/shivam-calls';
 import {
   engineFromCompletionChunk,
   resolveChatEngine,
@@ -527,6 +527,25 @@ export function InputArea() {
         }
         return;
       }
+    }
+
+    const youtubeIntent = /(youtube|यूट्यूब|यु ट्यूब)/.test(normalized)
+      && /(गाणं|गाणे|गाना|गीत|song|video|व्हिडिओ|विडिओ|लाव|लावा|चालू|play|प्ले|सुरू|बघ|दाखव)/.test(normalized);
+    if (youtubeIntent) {
+      const query = normalized
+        .replace(/(youtube|यूट्यूब|यु ट्यूब|ला|वर|हे|हा|ही|ते|तो|गाणं|गाणे|गाना|गीत|song|video|व्हिडिओ|विडिओ|लाव|लावा|चालू|कर|करा|play|प्ले|सुरू|बघ|दाखव|मला|जरा|शिवम|shivam|please|now)/g, ' ')
+        .replace(/[ ]+/g, ' ').trim();
+      if (query.length < 2) {
+        speakCallReply('शिवम विचारतोय, कोणते गाणे किंवा व्हिडिओ लावू? नाव सांगा.');
+        return;
+      }
+      try {
+        await searchShivamYouTube(query);
+        speakCallReply(`YouTube वर ${query} शोधले आहे. आवडता व्हिडिओ निवडा.`);
+      } catch (error) {
+        speakCallReply(error instanceof Error ? error.message : 'YouTube उघडता आले नाही.');
+      }
+      return;
     }
 
     const whatsappIntent = /(whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप)/.test(normalized);
