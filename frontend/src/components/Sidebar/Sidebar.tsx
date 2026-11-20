@@ -19,7 +19,6 @@ import {
   Database,
   StickyNote,
   Image,
-  HardHat,
 } from 'lucide-react';
 import { ConversationList } from './ConversationList';
 import { useAppStore } from '../../lib/store';
@@ -60,7 +59,6 @@ export function Sidebar() {
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/notes', icon: StickyNote, label: 'Notes' },
     { path: '/photo-editor', icon: Image, label: 'Photo Studio' },
-    { path: '/construction', icon: HardHat, label: 'Construction' },
     { path: '/data-sources', icon: Database, label: 'Data Sources' },
     { path: '/agents', icon: Bot, label: 'Agents' },
     { path: '/logs', icon: ScrollText, label: 'Logs' },
