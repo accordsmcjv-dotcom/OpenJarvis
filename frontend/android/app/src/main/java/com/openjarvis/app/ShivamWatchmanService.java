@@ -6,6 +6,9 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -31,7 +34,11 @@ public class ShivamWatchmanService extends Service {
     private BroadcastReceiver systemReceiver;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private AudioManager audioManager;
+    private AudioDeviceCallback audioDeviceCallback;
     private boolean internetAvailable;
+    private boolean headphonesConnected;
+    private boolean bluetoothHeadphonesConnected;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -39,6 +46,7 @@ public class ShivamWatchmanService extends Service {
         startOngoingNotification("फोनची स्थिती सुरक्षितपणे पाहत आहे");
         registerSystemSignals();
         registerNetworkSignals();
+        registerAudioSignals();
         inspectDevice();
     }
 
@@ -67,6 +75,10 @@ public class ShivamWatchmanService extends Service {
         if (connectivityManager != null && networkCallback != null) {
             try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) { }
             networkCallback = null;
+        }
+        if (audioManager != null && audioDeviceCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback); } catch (Exception ignored) { }
+            audioDeviceCallback = null;
         }
         super.onDestroy();
     }
@@ -159,6 +171,47 @@ public class ShivamWatchmanService extends Service {
         return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
+    private void registerAudioSignals() {
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager == null) return;
+        refreshAudioDeviceState();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioDeviceCallback = new AudioDeviceCallback() {
+                @Override public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                    refreshAudioDeviceState();
+                }
+                @Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+                    refreshAudioDeviceState();
+                }
+            };
+            try { audioManager.registerAudioDeviceCallback(audioDeviceCallback, null); }
+            catch (Exception ignored) { audioDeviceCallback = null; }
+        }
+    }
+
+    private void refreshAudioDeviceState() {
+        if (audioManager == null) return;
+        boolean headphones = false;
+        boolean bluetooth = false;
+        for (AudioDeviceInfo device : audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            int type = device.getType();
+            if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                        && type == AudioDeviceInfo.TYPE_BLE_HEADSET)) {
+                headphones = true;
+                bluetooth = true;
+            } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                    || type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        && type == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                headphones = true;
+            }
+        }
+        headphonesConnected = headphones;
+        bluetoothHeadphonesConnected = bluetooth;
+    }
+
     private void inspectDevice() {
         Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if (battery != null) {
@@ -186,8 +239,12 @@ public class ShivamWatchmanService extends Service {
     }
 
     private void updateStatusNotification() {
-        String text = internetAvailable ? "फोनची स्थिती पाहत आहे · इंटरनेट जोडलेले" : "फोनची स्थिती पाहत आहे · इंटरनेट नाही";
-        startOngoingNotification(text);
+        refreshAudioDeviceState();
+        String network = internetAvailable ? "इंटरनेट जोडलेले" : "इंटरनेट नाही";
+        String audio = headphonesConnected
+            ? (bluetoothHeadphonesConnected ? "Bluetooth हेडफोन जोडलेले" : "हेडफोन जोडलेले")
+            : "हेडफोन जोडलेले नाहीत";
+        startOngoingNotification("फोनची स्थिती पाहत आहे · " + network + " · " + audio);
     }
 
     private void postAlertOnce(String key, String message) {
