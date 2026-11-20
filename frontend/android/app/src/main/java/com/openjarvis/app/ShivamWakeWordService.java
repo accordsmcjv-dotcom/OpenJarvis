@@ -61,6 +61,12 @@ public class ShivamWakeWordService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        boolean enabled = getSharedPreferences("shivam_wake_word", MODE_PRIVATE)
+                .getBoolean("enabled", false);
+        if (!enabled) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         if (intent == null || ACTION_START.equals(intent.getAction())) {
             if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
                     != PackageManager.PERMISSION_GRANTED) {
