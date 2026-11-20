@@ -114,6 +114,15 @@ public class ShivamDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getWatchmanStatus(PluginCall call) {
+        boolean enabled = getContext().getSharedPreferences("shivam_watchman", Context.MODE_PRIVATE)
+            .getBoolean("user_enabled", false);
+        JSObject result = new JSObject();
+        result.put("enabled", enabled);
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void stopWatchman(PluginCall call) {
         try {
             Intent service = new Intent(getContext(), ShivamWatchmanService.class);
