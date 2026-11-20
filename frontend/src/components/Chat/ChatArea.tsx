@@ -206,9 +206,15 @@ export function ChatArea() {
     if (!Capacitor.isNativePlatform()) return;
     let active = true;
     let listenerHandle: { remove: () => Promise<void> } | null = null;
-    void ShivamDevice.getNotificationAccessStatus()
-      .then((status) => { if (active) setNotificationAccessGranted(status.granted); })
-      .catch(() => undefined);
+    const refreshNotificationAccess = () => {
+      if (document.visibilityState !== 'visible') return;
+      void ShivamDevice.getNotificationAccessStatus()
+        .then((status) => { if (active) setNotificationAccessGranted(status.granted); })
+        .catch(() => undefined);
+    };
+    refreshNotificationAccess();
+    window.addEventListener('focus', refreshNotificationAccess);
+    document.addEventListener('visibilitychange', refreshNotificationAccess);
     void ShivamDevice.getWatchmanStatus()
       .then((status) => { if (active) setWatchmanEnabled(status.enabled); })
       .catch(() => undefined);
@@ -228,6 +234,8 @@ export function ChatArea() {
       .catch(() => undefined);
     return () => {
       active = false;
+      window.removeEventListener('focus', refreshNotificationAccess);
+      document.removeEventListener('visibilitychange', refreshNotificationAccess);
       if (listenerHandle) void listenerHandle.remove();
     };
   }, [notificationReadingEnabled]);
