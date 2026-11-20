@@ -20,6 +20,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
+import android.net.Uri;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -95,6 +96,38 @@ public class ShivamDevicePlugin extends Plugin {
             getContext().registerReceiver(notificationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             getContext().registerReceiver(notificationReceiver, filter);
+        }
+    }
+
+    @PluginMethod
+    public void openNavigation(PluginCall call) {
+        String destination = call.getString("destination");
+        String mode = call.getString("mode", "driving");
+        if (destination == null || destination.trim().isEmpty()) {
+            call.reject("कृपया जाण्याचे ठिकाण सांगा.");
+            return;
+        }
+        String travelMode = "walking".equalsIgnoreCase(mode) ? "walking"
+            : "bicycling".equalsIgnoreCase(mode) ? "bicycling" : "driving";
+        Uri mapsUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination="
+            + Uri.encode(destination.trim()) + "&travelmode=" + travelMode + "&dir_action=navigate");
+        try {
+            Intent mapsIntent = new Intent(Intent.ACTION_VIEW, mapsUri);
+            mapsIntent.setPackage("com.google.android.apps.maps");
+            mapsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                getContext().startActivity(mapsIntent);
+            } catch (Exception mapsUnavailable) {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, mapsUri);
+                browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(browserIntent);
+            }
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            result.put("travelMode", travelMode);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("नकाशा उघडता आला नाही. Google Maps किंवा ब्राउझर तपासा.", error);
         }
     }
 
