@@ -37,15 +37,16 @@ def get_available_tools():
         {"name": "update_memory_item", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार आधीची Memory बदला."},
         {"name": "forget_memory_item", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार विशिष्ट Memory हटवा."},
         {"name": "memory_dashboard", "description": "Memory ची आकडेवारी आणि सुरक्षित नोंदींची स्थिती तपासा."},
+        {"name": "detect_memory_conflicts", "description": "Memory मधील संभाव्य विरोधी नोंदी शोधा."},
         {"name": "recall_conversation_context", "description": "मागील संभाषणातील संबंधित संदर्भ शोधा."},
+        {"name": "preview_memory_backup", "description": "जतन केलेल्या Memory Backup ची माहिती तपासा."},
+        {"name": "memory_integrity_check", "description": "Memory आणि Category फाइलची सुसंगतता तपासा."},
+        {"name": "list_memory_backups", "description": "उपलब्ध Memory Backup ची यादी दाखवा."},
         {"name": "add_note", "description": "नवीन नोंद किंवा टिपण जतन करा."},
         {"name": "list_notes", "description": "जतन केलेल्या नोंदींची यादी दाखवा."},
         {"name": "search_notes", "description": "नोंदींमध्ये शब्द किंवा विषय शोधा."},
         {"name": "delete_note", "description": "वापरकर्त्याच्या स्पष्ट विनंतीनुसार निवडलेली नोंद हटवा."},
         {"name": "open_android_app", "description": "वापरकर्त्याची मंजुरी मिळाल्यानंतर समर्थित Android App उघडा."},
-        {"name": "screen_understanding", "description": "वापरकर्त्याच्या परवानगीने स्क्रीनवरील मजकूर वाचा."},
-        {"name": "photo_text_recognition", "description": "निवडलेल्या फोटोमधील मराठी आणि इंग्रजी मजकूर फोनवरच वाचा."},
-        {"name": "managed_agents", "description": "नियोजित आणि अनेक टप्प्यांची Agent कामे व्यवस्थापित करा."}
     ]
 
 
