@@ -67,6 +67,7 @@ export function ChatArea() {
   const [weatherSummary, setWeatherSummary] = useState('LOADING');
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [weatherForecast, setWeatherForecast] = useState<Array<{ date: string; max: number; min: number; rain: number }>>([]);
+  const [weatherAlert, setWeatherAlert] = useState('');
 
   const requestCurrentLocation = async () => {
     setLocationBusy(true);
@@ -126,16 +127,24 @@ export function ChatArea() {
           setWeatherSummary(`${Math.round(current.temperature_2m)}°C · ${condition}`);
           const daily = data.daily;
           if (daily?.time && daily.temperature_2m_max && daily.temperature_2m_min) {
-            setWeatherForecast(daily.time.map((date, index) => ({
+            const forecast = daily.time.map((date, index) => ({
               date,
               max: Math.round(daily.temperature_2m_max?.[index] ?? 0),
               min: Math.round(daily.temperature_2m_min?.[index] ?? 0),
               rain: Math.round(daily.precipitation_probability_max?.[index] ?? 0),
-            })));
+            }));
+            setWeatherForecast(forecast);
+            const today = forecast[0];
+            setWeatherAlert(today
+              ? today.rain >= 60 ? 'आज पावसाची शक्यता जास्त आहे. बाहेर पडताना छत्री ठेवा.'
+                : today.max >= 38 ? 'आज उष्णता जास्त असू शकते. पाणी पित राहा.'
+                : today.min <= 12 ? 'आज थंडी जाणवेल. उबदार कपडे वापरा.'
+                : ''
+              : '');
           }
         }
       } catch {
-        if (!cancelled) { setWeatherSummary('UNAVAILABLE'); setWeatherForecast([]); }
+        if (!cancelled) { setWeatherSummary('UNAVAILABLE'); setWeatherForecast([]); setWeatherAlert(''); }
       } finally {
         if (!cancelled) setWeatherBusy(false);
       }
@@ -404,6 +413,11 @@ export function ChatArea() {
                 {weatherCities.map((city) => <option key={city.name} value={city.name}>{city.name}</option>)}
               </select>
             </div>
+            {weatherAlert && (
+              <div className="shivam-weather-alert" role="status">
+                <span aria-hidden="true">⚠</span><b>SHIVAM सूचना</b><span>{weatherAlert}</span>
+              </div>
+            )}
             {weatherForecast.length > 0 && (
               <div className="shivam-weather-forecast" aria-label="पुढील सात दिवसांचा हवामान अंदाज">
                 {weatherForecast.map((day) => (
