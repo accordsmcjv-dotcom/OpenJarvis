@@ -82,3 +82,23 @@ export function normalizeAgentSchedule(type: string, value: unknown): AgentSched
       return { type, value: current };
   }
 }
+
+/**
+ * Add a predictable plan/execute/verify protocol to managed agents.
+ * High-impact external actions remain approval-gated; safe read-only steps
+ * can be completed autonomously.
+ */
+export function buildAgentExecutionInstruction(instruction: string): string {
+  const protocol = [
+    'WORKFLOW EXECUTION PROTOCOL:',
+    '1. Break the request into ordered, small steps and identify dependencies before acting.',
+    '2. Execute independent read-only steps autonomously; do not ask the user to approve routine inspection or research.',
+    '3. Before sending messages, publishing, deleting, purchasing, changing account/device settings, or sharing private data, pause and obtain explicit user approval.',
+    '4. After each meaningful step, record a concise checkpoint with its result and any remaining work.',
+    '5. If a step fails, diagnose the cause, retry at most once when safe, then re-plan around the failure instead of claiming success.',
+    '6. Verify the final result using available tools and clearly separate completed actions, pending approvals, and blockers.',
+    '7. Never invent tool results, files, confirmations, or completed actions.'
+  ].join('\\n');
+  const userInstruction = instruction.trim();
+  return userInstruction ? userInstruction + '\\n\\n' + protocol : protocol;
+}
