@@ -9,6 +9,8 @@ import android.os.BatteryManager;
 import android.os.Build;
 import android.os.PowerManager;
 import android.os.StatFs;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -83,6 +85,31 @@ public class ShivamDevicePlugin extends Plugin {
                 int temperature = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
                 if (temperature > 0) result.put("batteryTemperatureC", temperature / 10.0);
             }
+
+            AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+            boolean bluetoothAudioConnected = false;
+            boolean wiredHeadphonesConnected = false;
+            if (audioManager != null) {
+                AudioDeviceInfo[] outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                for (AudioDeviceInfo output : outputs) {
+                    int type = output.getType();
+                    if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                            || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                            || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                                && type == AudioDeviceInfo.TYPE_BLE_HEADSET)) {
+                        bluetoothAudioConnected = true;
+                    }
+                    if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                            || type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                            || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                && type == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                        wiredHeadphonesConnected = true;
+                    }
+                }
+            }
+            result.put("bluetoothAudioConnected", bluetoothAudioConnected);
+            result.put("wiredHeadphonesConnected", wiredHeadphonesConnected);
+            result.put("headphonesConnected", bluetoothAudioConnected || wiredHeadphonesConnected);
 
             StatFs storage = new StatFs(getContext().getFilesDir().getAbsolutePath());
             result.put("storageFreeGb", storage.getAvailableBytes() / 1073741824.0);
