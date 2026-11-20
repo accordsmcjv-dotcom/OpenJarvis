@@ -17,7 +17,7 @@ export function PhotoEditorPage() {
   const [flip, setFlip] = useState(false);
   const [cropRatio, setCropRatio] = useState<number | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
-  const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid'>('none');
+  const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid' | 'cool' | 'vintage' | 'fade' | 'dramatic'>('none');
   const [overlayText, setOverlayText] = useState('');
   const [overlaySize, setOverlaySize] = useState(42);
   const [overlayColor, setOverlayColor] = useState('#ffffff');
@@ -79,7 +79,11 @@ export function PhotoEditorPage() {
     if (!ctx) return;
     const tone = filter === 'warm' ? 'sepia(0.28) saturate(1.12)' :
       filter === 'mono' ? 'grayscale(1)' :
-      filter === 'vivid' ? 'saturate(1.45) contrast(1.08)' : '';
+      filter === 'vivid' ? 'saturate(1.45) contrast(1.08)' :
+      filter === 'cool' ? 'hue-rotate(12deg) saturate(1.12) brightness(1.04)' :
+      filter === 'vintage' ? 'sepia(0.48) contrast(0.92) saturate(0.78)' :
+      filter === 'fade' ? 'contrast(0.82) brightness(1.1) saturate(0.72)' :
+      filter === 'dramatic' ? 'contrast(1.32) saturate(1.18)' : '';
     ctx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%) ${tone} blur(${blur}px)`;
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -377,6 +381,7 @@ export function PhotoEditorPage() {
               <div className="grid grid-cols-2 gap-2">
                 {([
                   ['none', 'Original'], ['warm', 'Warm'], ['mono', 'B&W'], ['vivid', 'Vivid'],
+                  ['cool', 'Cool'], ['vintage', 'Vintage'], ['fade', 'Fade'], ['dramatic', 'Dramatic'],
                 ] as const).map(([value, label]) => (
                   <button key={value} disabled={!imageUrl} onClick={() => setFilter(value)} className={`${actionClass} ${filter === value ? 'font-semibold' : ''}`} style={{ ...controlStyle, color: filter === value ? 'var(--color-accent)' : controlStyle.color, borderColor: filter === value ? 'var(--color-accent)' : 'var(--color-border)' }}>{label}</button>
                 ))}
