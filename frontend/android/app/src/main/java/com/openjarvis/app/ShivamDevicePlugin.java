@@ -11,6 +11,10 @@ import android.os.PowerManager;
 import android.os.StatFs;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.wifi.WifiManager;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -85,6 +89,39 @@ public class ShivamDevicePlugin extends Plugin {
                 int temperature = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
                 if (temperature > 0) result.put("batteryTemperatureC", temperature / 10.0);
             }
+
+            ConnectivityManager connectivity = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            boolean networkConnected = false;
+            boolean internetValidated = false;
+            boolean wifiConnected = false;
+            String networkTransport = "NONE";
+            if (connectivity != null) {
+                Network activeNetwork = connectivity.getActiveNetwork();
+                if (activeNetwork != null) {
+                    NetworkCapabilities capabilities = connectivity.getNetworkCapabilities(activeNetwork);
+                    if (capabilities != null) {
+                        networkConnected = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                        internetValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                            networkTransport = "WIFI";
+                            wifiConnected = true;
+                        } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                            networkTransport = "CELLULAR";
+                        } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
+                            networkTransport = "ETHERNET";
+                        } else if (networkConnected) {
+                            networkTransport = "OTHER";
+                        }
+                    }
+                }
+            }
+            WifiManager wifiManager = (WifiManager) getContext().getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            boolean wifiEnabled = wifiManager != null && wifiManager.isWifiEnabled();
+            result.put("networkConnected", networkConnected);
+            result.put("internetValidated", internetValidated);
+            result.put("wifiEnabled", wifiEnabled);
+            result.put("wifiConnected", wifiConnected);
+            result.put("networkTransport", networkTransport);
 
             AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
             boolean bluetoothAudioConnected = false;
