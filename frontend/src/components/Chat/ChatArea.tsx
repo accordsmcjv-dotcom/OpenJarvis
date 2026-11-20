@@ -76,7 +76,11 @@ export function ChatArea() {
       const currentLast = app.messages[app.messages.length - 1];
       if (app.activeId !== completedConversationId || app.streamState.isStreaming) return;
       if (!app.settings.voiceOutputEnabled || !app.settings.voiceAutoplay) return;
-      if (currentLast?.id !== completedMessageId || currentTts.available !== true) return;
+      if (currentTts.available !== true) {
+        window.dispatchEvent(new Event('shivamTtsFinished'));
+        return;
+      }
+      if (currentLast?.id !== completedMessageId) return;
       if (currentTts.autoSpokenId === completedMessageId) return;
 
       const text = stripThinkTags(currentLast.content);
