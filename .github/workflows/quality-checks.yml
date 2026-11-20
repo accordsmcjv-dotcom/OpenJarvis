@@ -1,0 +1,61 @@
+name: SHIVAM Quality Checks
+
+on:
+  push:
+    branches:
+      - personal-jarvis
+    paths:
+      - "api_server.py"
+      - "jarvis.py"
+      - "tools_engine.py"
+      - "snooze.py"
+      - "frontend/**"
+      - ".github/workflows/quality-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shivam-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-checks:
+    name: Python syntax checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python files
+        run: python -m py_compile api_server.py jarvis.py tools_engine.py snooze.py
+
+  frontend-checks:
+    name: Frontend tests and TypeScript build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Set npm version
+        run: npm install --global npm@11.19.0
+      - name: Install dependencies
+        run: npm ci --include=dev
+      - name: Run frontend tests
+        run: npm test
+      - name: Run TypeScript and production web build
+        run: npm run build
+
+# This workflow intentionally does not invoke Gradle or produce an Android APK.
