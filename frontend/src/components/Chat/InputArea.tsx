@@ -332,7 +332,7 @@ export function InputArea() {
     if (!content || streamState.isStreaming) return;
 
     const normalized = content.toLocaleLowerCase('mr-IN').replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ').trim();
-    const affirmative = /^(हो|होय|कर|करा|लाव|लावा|yes|yeah|ok|okay|haan|ha|kar|kara)(\\s+(कर|करा|लाव|लावा))?$/.test(normalized);
+    const affirmative = /^(हो|होय|कर|करा|लाव|लावा|yes|yeah|ok|okay|haan|ha|kar|kara)(\s+(कर|करा|लाव|लावा))?$/.test(normalized);
     const negative = /^(नाही|नको|रद्द|थांब|no|nope|cancel|nako|nahi)$/.test(normalized);
     const speakCallReply = (reply: string) => {
       let id = activeId;
@@ -358,7 +358,7 @@ export function InputArea() {
         const selected = pendingCall.selected;
         if (!selected) {
           setPendingCall({ stage: 'contact', contacts: [] });
-          speakCallReply('शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
+          speakCallReply('शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
           return;
         }
         setPendingCall(null);
@@ -415,7 +415,7 @@ export function InputArea() {
         .replace(/\s+/g, ' ').trim();
       setPendingCall({ stage: 'contact', contacts: [] });
       if (!target) {
-        speakCallReply('शिवम विचारतोय, शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
+        speakCallReply('शिवम विचारतोय, शिवम विचारतोय, कोणाला कॉल करू? संपर्काचे नाव सांगा.');
       } else {
         try {
           const result = await findShivamContacts(target);
