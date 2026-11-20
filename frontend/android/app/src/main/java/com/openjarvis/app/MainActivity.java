@@ -18,6 +18,9 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         dispatchWakeIntent(getIntent());
         requestShivamPermissions();
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startShivamWakeWordService();
+        }
     }
 
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); dispatchWakeIntent(intent); }
@@ -33,10 +36,14 @@ public class MainActivity extends BridgeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == SHIVAM_PERMISSION_REQUEST
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            Intent service = new Intent(this, ShivamWakeWordService.class);
-            service.setAction(ShivamWakeWordService.ACTION_START);
-            androidx.core.content.ContextCompat.startForegroundService(this, service);
+            startShivamWakeWordService();
         }
+    }
+
+    private void startShivamWakeWordService() {
+        Intent service = new Intent(this, ShivamWakeWordService.class);
+        service.setAction(ShivamWakeWordService.ACTION_START);
+        androidx.core.content.ContextCompat.startForegroundService(this, service);
     }
 
     private void requestShivamPermissions() {
