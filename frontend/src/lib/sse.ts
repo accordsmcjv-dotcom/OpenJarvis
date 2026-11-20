@@ -3,7 +3,7 @@ import { getBase, authHeaders } from './api';
 
 export interface ChatRequest {
   model: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string | Array<Record<string, unknown>> }>;
   stream: true;
   temperature?: number;
   max_tokens?: number;
