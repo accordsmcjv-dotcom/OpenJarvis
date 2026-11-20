@@ -11,6 +11,7 @@ import { LogsPage } from './pages/LogsPage';
 import { NotesPage } from './pages/NotesPage';
 import { PhotoEditorPage } from './pages/PhotoEditorPage';
 import { SmartConverterPage } from './pages/SmartConverterPage';
+import { GovernmentSchemesPage } from './pages/GovernmentSchemesPage';
 import { CommandPalette } from './components/CommandPalette';
 import { SetupScreen } from './components/SetupScreen';
 import { Toaster } from './components/ui/sonner';
@@ -278,6 +279,7 @@ export default function App() {
               <Route path="notes" element={<NotesPage />} />
           <Route path="photo-editor" element={<PhotoEditorPage />} />
           <Route path="smart-converter" element={<SmartConverterPage />} />
+          <Route path="government-schemes" element={<GovernmentSchemesPage />} />
           <Route path="site-reminders" element={<SiteRemindersPage />} />
         </Route>
       </Routes>
