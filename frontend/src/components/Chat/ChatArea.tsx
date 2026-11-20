@@ -66,6 +66,7 @@ export function ChatArea() {
   const [locationMessage, setLocationMessage] = useState('');
   const [weatherSummary, setWeatherSummary] = useState('LOADING');
   const [weatherBusy, setWeatherBusy] = useState(false);
+  const [weatherForecast, setWeatherForecast] = useState<Array<{ date: string; max: number; min: number; rain: number }>>([]);
 
   const requestCurrentLocation = async () => {
     setLocationBusy(true);
@@ -106,10 +107,13 @@ export function ChatArea() {
     const loadWeather = async () => {
       setWeatherBusy(true);
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=Asia%2FKolkata`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=7&timezone=Asia%2FKolkata`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('Weather unavailable');
-        const data = await response.json() as { current?: { temperature_2m?: number; relative_humidity_2m?: number; weather_code?: number } };
+        const data = await response.json() as {
+          current?: { temperature_2m?: number; relative_humidity_2m?: number; weather_code?: number };
+          daily?: { time?: string[]; temperature_2m_max?: number[]; temperature_2m_min?: number[]; precipitation_probability_max?: number[] };
+        };
         const current = data.current;
         if (!current || typeof current.temperature_2m !== 'number') throw new Error('Weather data missing');
         const code = current.weather_code ?? -1;
@@ -118,9 +122,20 @@ export function ChatArea() {
           : [61, 63, 65, 66, 67, 80, 81, 82].includes(code) ? 'RAIN'
           : [71, 73, 75, 77, 85, 86].includes(code) ? 'SNOW'
           : [95, 96, 99].includes(code) ? 'STORM' : 'WEATHER';
-        if (!cancelled) setWeatherSummary(`${Math.round(current.temperature_2m)}°C · ${condition}`);
+        if (!cancelled) {
+          setWeatherSummary(`${Math.round(current.temperature_2m)}°C · ${condition}`);
+          const daily = data.daily;
+          if (daily?.time && daily.temperature_2m_max && daily.temperature_2m_min) {
+            setWeatherForecast(daily.time.map((date, index) => ({
+              date,
+              max: Math.round(daily.temperature_2m_max?.[index] ?? 0),
+              min: Math.round(daily.temperature_2m_min?.[index] ?? 0),
+              rain: Math.round(daily.precipitation_probability_max?.[index] ?? 0),
+            })));
+          }
+        }
       } catch {
-        if (!cancelled) setWeatherSummary('UNAVAILABLE');
+        if (!cancelled) { setWeatherSummary('UNAVAILABLE'); setWeatherForecast([]); }
       } finally {
         if (!cancelled) setWeatherBusy(false);
       }
@@ -389,6 +404,18 @@ export function ChatArea() {
                 {weatherCities.map((city) => <option key={city.name} value={city.name}>{city.name}</option>)}
               </select>
             </div>
+            {weatherForecast.length > 0 && (
+              <div className="shivam-weather-forecast" aria-label="पुढील सात दिवसांचा हवामान अंदाज">
+                {weatherForecast.map((day) => (
+                  <div className="shivam-weather-day" key={day.date}>
+                    <span>{new Date(`${day.date}T12:00:00`).toLocaleDateString('mr-IN', { weekday: 'short' })}</span>
+                    <b>{day.max}°</b>
+                    <span>{day.min}°</span>
+                    <small>☂ {day.rain}%</small>
+                  </div>
+                ))}
+              </div>
+            )}
             <h2 className="text-sm font-medium mt-5 mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {getGreeting()}
             </h2>
