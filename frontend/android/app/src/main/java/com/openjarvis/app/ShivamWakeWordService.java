@@ -111,7 +111,9 @@ public class ShivamWakeWordService extends Service {
                 @Override public void onRmsChanged(float rmsdB) {}
                 @Override public void onBufferReceived(byte[] buffer) {}
                 @Override public void onEndOfSpeech() {}
-                @Override public void onPartialResults(android.os.Bundle partialResults) {}
+                @Override public void onPartialResults(android.os.Bundle partialResults) {
+                    if (containsWakeWord(partialResults)) wake();
+                }
                 @Override public void onEvent(int eventType, android.os.Bundle params) {}
 
                 @Override
@@ -121,17 +123,9 @@ public class ShivamWakeWordService extends Service {
 
                 @Override
                 public void onResults(android.os.Bundle results) {
-                    ArrayList<String> matches = results.getStringArrayList(
-                            SpeechRecognizer.RESULTS_RECOGNITION);
-                    if (matches != null) {
-                        for (String match : matches) {
-                            String value = match == null ? "" : match.toLowerCase(Locale.ROOT);
-                            if (value.contains("shivam") || value.contains("शिवम")
-                                    || value.contains("शिवम्") || value.contains("शिवाम")) {
-                                wake();
-                                return;
-                            }
-                        }
+                    if (containsWakeWord(results)) {
+                        wake();
+                        return;
                     }
                     scheduleRestart();
                 }
@@ -142,12 +136,28 @@ public class ShivamWakeWordService extends Service {
                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "mr-IN");
             request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "mr-IN");
-            request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
             request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4);
             recognizer.startListening(request);
         } catch (Exception error) {
             scheduleRestart();
         }
+    }
+
+    private boolean containsWakeWord(android.os.Bundle results) {
+        if (results == null) return false;
+        ArrayList<String> matches = results.getStringArrayList(
+                SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches == null) return false;
+        for (String match : matches) {
+            String value = match == null ? "" : match.toLowerCase(Locale.ROOT).trim();
+            if (value.contains("shivam") || value.contains("शिवम")
+                    || value.contains("शिवम्") || value.contains("शिवाम")
+                    || value.contains("शिवान")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void scheduleRestart() {
