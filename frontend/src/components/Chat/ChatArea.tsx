@@ -36,6 +36,12 @@ interface ShivamDevicePlugin {
 }
 const ShivamDevice = registerPlugin<ShivamDevicePlugin>('ShivamDevice');
 
+interface ShivamWakeWordApi {
+  startListening(): Promise<void>;
+  stopListening(): Promise<void>;
+}
+const ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'शुभ सकाळ';
@@ -49,6 +55,7 @@ export function ChatArea() {
   const streamState = useAppStore((s) => s.streamState);
   const systemPanelOpen = useAppStore((s) => s.systemPanelOpen);
   const toggleSystemPanel = useAppStore((s) => s.toggleSystemPanel);
+  const speechEnabled = useAppStore((s) => s.settings.speechEnabled);
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
@@ -57,6 +64,18 @@ export function ChatArea() {
   const isCurrentChatStreaming = streamState.isStreaming && streamState.conversationId === activeId;
 
   const [wakeStatus, setWakeStatus] = useState<'listening' | 'capturing' | 'thinking' | 'off'>('off');
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return;
+    const syncMicrophone = async () => {
+      try {
+        if (speechEnabled) await ShivamWakeWord.startListening();
+        else await ShivamWakeWord.stopListening();
+      } catch (error) {
+        console.warn('SHIVAM microphone preference could not be synchronized:', error);
+      }
+    };
+    void syncMicrophone();
+  }, [speechEnabled]);
   useEffect(() => {
     const handleWakeStatus = (event: Event) => {
       const next = (event as CustomEvent<string>).detail;
