@@ -23,6 +23,8 @@ export function PhotoEditorPage() {
   const [overlayColor, setOverlayColor] = useState('#ffffff');
   const [overlayPosition, setOverlayPosition] = useState<'top' | 'center' | 'bottom'>('bottom');
   const [sticker, setSticker] = useState('');
+  const [stickerSize, setStickerSize] = useState(13);
+  const [stickerPosition, setStickerPosition] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('bottom-right');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor, overlayPosition, sticker, stickerSize, stickerPosition]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -119,13 +121,15 @@ export function PhotoEditorPage() {
     if (sticker) {
       ctx.save();
       ctx.filter = 'none';
-      const stickerSize = Math.max(28, Math.round(Math.min(canvas.width, canvas.height) * 0.13));
-      ctx.font = `${stickerSize}px sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
+      const sizePx = Math.max(28, Math.round(Math.min(canvas.width, canvas.height) * stickerSize / 100));
+      ctx.font = `${sizePx}px sans-serif`;
+      ctx.textAlign = stickerPosition.endsWith('left') ? 'left' : 'right';
+      ctx.textBaseline = stickerPosition.startsWith('top') ? 'top' : 'bottom';
       ctx.shadowColor = 'rgba(0,0,0,0.35)';
-      ctx.shadowBlur = stickerSize * 0.18;
-      ctx.fillText(sticker, canvas.width - stickerSize * 0.35, canvas.height - stickerSize * 0.35);
+      ctx.shadowBlur = sizePx * 0.18;
+      const x = stickerPosition.endsWith('left') ? sizePx * 0.35 : canvas.width - sizePx * 0.35;
+      const y = stickerPosition.startsWith('top') ? sizePx * 0.35 : canvas.height - sizePx * 0.35;
+      ctx.fillText(sticker, x, y);
       ctx.restore();
     }
   }
@@ -148,6 +152,8 @@ export function PhotoEditorPage() {
     setOverlayText('');
     setOverlaySize(42);
     setSticker('');
+    setStickerSize(13);
+    setStickerPosition('bottom-right');
     setImageUrl(URL.createObjectURL(file));
     event.target.value = '';
   }
@@ -161,6 +167,8 @@ export function PhotoEditorPage() {
     setOverlayText('');
     setOverlaySize(42);
     setSticker('');
+    setStickerSize(13);
+    setStickerPosition('bottom-right');
   }
 
   function savePhoto() {
@@ -284,8 +292,20 @@ export function PhotoEditorPage() {
                   <button key={emoji} type="button" disabled={!imageUrl} onClick={() => setSticker((current) => current === emoji ? '' : emoji)} className={`${actionClass} text-xl`} style={{ ...controlStyle, outline: sticker === emoji ? '2px solid var(--color-accent)' : 'none' }} aria-label={`Sticker ${emoji}`}>{emoji}</button>
                 ))}
               </div>
+              <label className="block space-y-1">
+                <span className="flex justify-between text-xs"><span>Sticker चा आकार</span><span>{stickerSize}%</span></span>
+                <input type="range" min="6" max="28" value={stickerSize} disabled={!imageUrl || !sticker} onChange={(event) => setStickerSize(Number(event.target.value))} className="w-full accent-cyan-500" />
+              </label>
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span>Sticker ची जागा</span>
+                <select value={stickerPosition} disabled={!imageUrl || !sticker} onChange={(event) => setStickerPosition(event.target.value as typeof stickerPosition)} className="rounded-lg px-2 py-2 text-xs" style={controlStyle}>
+                  <option value="top-left">वर डावीकडे</option>
+                  <option value="top-right">वर उजवीकडे</option>
+                  <option value="bottom-left">खाली डावीकडे</option>
+                  <option value="bottom-right">खाली उजवीकडे</option>
+                </select>
+              </label>
               <button type="button" disabled={!imageUrl || !sticker} onClick={() => setSticker('')} className={actionClass} style={controlStyle}>Sticker काढा</button>
-              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>निवडलेला Sticker फोटोच्या खालच्या उजव्या कोपऱ्यात दिसेल.</p>
             </section>
 
             <section className="hud-panel space-y-3 p-4">
