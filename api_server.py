@@ -1858,7 +1858,12 @@ class JarvisAPI(BaseHTTPRequestHandler):
                         result = add_note(arguments["text"], arguments.get("title", ""))
                     else:
                         result = delete_note(arguments["note_id"])
-                    succeeded = isinstance(result, dict) and result.get("success") is True
+                    succeeded = (
+                        isinstance(result, dict)
+                        and result.get("success") is not False
+                        and not result.get("error")
+                        and ("success" in result or "result" in result)
+                    )
                     action["status"] = "approved" if succeeded else "failed"
                     action["execution_result"] = result
                     save_approvals(approvals)
@@ -2049,7 +2054,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 "स्वतंत्र, सुरक्षित आणि केवळ माहिती-वाचणारी कामे एकाच Tool टप्प्यात एकत्र कर; उपलब्ध असल्यास जास्तीत जास्त 5 योग्य Tool Calls वापर. "
                 "एखाद्या पुढील टप्प्यासाठी आधीच्या Tool चा निकाल आवश्यक असल्यास तो निकाल मिळाल्यानंतरच पुढील कृती ठरव; अंदाजाने Arguments तयार करू नकोस. "
                 "प्रत्येक Tool चा प्रत्यक्ष निकाल तपासूनच पुढे जा आणि अपयश आल्यास कारण स्पष्ट कर. "
-                "App उघडणे, बाह्य संदेश पाठवणे, प्रकाशित करणे, हटवणे, खरेदी करणे किंवा सेटिंग बदलणे यांसारख्या कृतींसाठी आवश्यक स्पष्ट मंजुरीशिवाय कृती करू नकोस. "
+                "App उघडणे, बाह्य संदेश पाठवणे, प्रकाशित करणे, Memory किंवा Notes जतन/अपडेट/हटवणे, खरेदी करणे किंवा सेटिंग बदलणे यांसारख्या बदल करणाऱ्या कृतींसाठी आवश्यक स्पष्ट मंजुरीशिवाय कृती करू नकोस. "
                 "Tool चा निकाल मिळेपर्यंत कृती यशस्वी झाल्याचा दावा करू नकोस. "
                 "Tool Error किंवा अपूर्ण माहिती स्पष्ट सांग. "
                 "बनावट आकडे, Memory किंवा न केलेली कृती खरी म्हणून सांगू नकोस. "
