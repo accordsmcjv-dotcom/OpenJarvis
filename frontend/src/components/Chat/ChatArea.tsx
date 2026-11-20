@@ -24,6 +24,7 @@ interface ShivamDevicePlugin {
     thermalStatus?: string; deviceModel?: string; androidVersion?: string;
     bluetoothAudioConnected?: boolean; wiredHeadphonesConnected?: boolean; headphonesConnected?: boolean;
     networkConnected?: boolean; internetValidated?: boolean; wifiEnabled?: boolean; wifiConnected?: boolean; networkTransport?: string;
+    ringerMode?: string; dndAccessGranted?: boolean; dndStatus?: string; screenInteractive?: boolean; deviceLocked?: boolean;
   }>;
 }
 const ShivamDevice = registerPlugin<ShivamDevicePlugin>('ShivamDevice');
@@ -69,6 +70,8 @@ export function ChatArea() {
   const previousHeadphonesState = useRef<boolean | null>(null);
   const previousInternetState = useRef<boolean | null>(null);
   const previousWifiState = useRef<boolean | null>(null);
+  const previousRingerMode = useRef<string | null>(null);
+  const previousDndStatus = useRef<string | null>(null);
   const [networkOnline, setNetworkOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [networkType, setNetworkType] = useState('—');
   const [hudClock, setHudClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -192,6 +195,22 @@ export function ChatArea() {
         const info = await ShivamDevice.getTelemetry();
         if (!cancelled) {
           setDeviceTelemetry(info);
+          if (typeof info.ringerMode === 'string') {
+            const previous = previousRingerMode.current;
+            if (previous !== null && previous !== info.ringerMode) {
+              const labels: Record<string, string> = { SILENT: 'सायलेंट मोड', VIBRATE: 'व्हायब्रेशन मोड', NORMAL: 'रिंग मोड' };
+              void useTtsStore.getState().speak(`ringer-${info.ringerMode}-${Date.now()}`, `फोनचा आवाज ${labels[info.ringerMode] ?? info.ringerMode} मध्ये बदलला आहे.`);
+            }
+            previousRingerMode.current = info.ringerMode;
+          }
+          if (typeof info.dndStatus === 'string' && info.dndStatus !== 'UNKNOWN') {
+            const previous = previousDndStatus.current;
+            if (previous !== null && previous !== info.dndStatus) {
+              const labels: Record<string, string> = { OFF: 'बंद', TOTAL_SILENCE: 'पूर्ण शांतता', ALARMS_ONLY: 'फक्त अलार्म', PRIORITY_ONLY: 'प्राधान्य सूचना' };
+              void useTtsStore.getState().speak(`dnd-${info.dndStatus}-${Date.now()}`, `डू नॉट डिस्टर्ब मोड ${labels[info.dndStatus] ?? info.dndStatus}.`);
+            }
+            previousDndStatus.current = info.dndStatus;
+          }
           if (typeof info.internetValidated === 'boolean') {
             const previous = previousInternetState.current;
             if (previous !== null && previous !== info.internetValidated) {
@@ -553,6 +572,10 @@ export function ChatArea() {
               {deviceTelemetry?.memoryAvailableGb !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▦</span><span className="shivam-glass-label">AVAILABLE RAM</span><b>{deviceTelemetry.memoryAvailableGb.toFixed(1)} / {(deviceTelemetry.memoryTotalGb ?? 0).toFixed(1)} GB</b></div>}
               {deviceTelemetry?.batteryTemperatureC !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">♨</span><span className="shivam-glass-label">BATTERY TEMP</span><b>{deviceTelemetry.batteryTemperatureC.toFixed(1)}°C</b></div>}
               {deviceTelemetry?.thermalStatus && <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌁</span><span className="shivam-glass-label">THERMAL STATUS</span><b>{deviceTelemetry.thermalStatus}</b></div>}
+              {deviceTelemetry?.ringerMode && <div className="shivam-glass-cell"><span className="shivam-glass-icon">♫</span><span className="shivam-glass-label">RINGER</span><b>{deviceTelemetry.ringerMode}</b></div>}
+              {deviceTelemetry?.dndAccessGranted && deviceTelemetry.dndStatus && <div className="shivam-glass-cell"><span className="shivam-glass-icon">◉</span><span className="shivam-glass-label">DO NOT DISTURB</span><b>{deviceTelemetry.dndStatus}</b></div>}
+              {deviceTelemetry?.screenInteractive !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▣</span><span className="shivam-glass-label">SCREEN</span><b>{deviceTelemetry.screenInteractive ? 'ON' : 'OFF'}</b></div>}
+              {deviceTelemetry?.deviceLocked !== undefined && <div className="shivam-glass-cell"><span className="shivam-glass-icon">⌑</span><span className="shivam-glass-label">LOCK</span><b>{deviceTelemetry.deviceLocked ? 'LOCKED' : 'UNLOCKED'}</b></div>}
               {deviceTelemetry?.deviceModel && <div className="shivam-glass-cell"><span className="shivam-glass-icon">▣</span><span className="shivam-glass-label">DEVICE</span><b>{deviceTelemetry.deviceModel} · Android {deviceTelemetry.androidVersion ?? '—'}</b></div>}
             </div>
             <div className="shivam-weather-picker" aria-label="हवामानाचे स्थान निवडा">
