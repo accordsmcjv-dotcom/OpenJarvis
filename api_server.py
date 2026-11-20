@@ -1700,6 +1700,8 @@ def create_document_file(arguments):
             archive.writestr("xl/worksheets/sheet1.xml", sheet)
         mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+    with open(os.path.join(GENERATED_DOCUMENTS_DIR, file_id + ".json"), "w", encoding="utf-8") as metadata_file:
+        json.dump({"filename": download_name, "format": fmt}, metadata_file, ensure_ascii=False)
     return {"success": True, "file_id": file_id, "filename": download_name,
             "format": fmt, "download_url": "/v1/documents/download/" + file_id,
             "message": "फाइल तयार झाली आहे."}
@@ -1735,7 +1737,15 @@ class JarvisAPI(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(os.path.getsize(file_path)))
-            self.send_header("Content-Disposition", 'attachment; filename="' + file_id + extension + '"')
+            metadata_path = os.path.join(GENERATED_DOCUMENTS_DIR, file_id + ".json")
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as metadata_file:
+                    original_name = json.load(metadata_file).get("filename", file_id + extension)
+            except Exception:
+                original_name = file_id + extension
+            fallback_name = re.sub(r"[^A-Za-z0-9._-]", "_", original_name)
+            encoded_name = urllib.parse.quote(original_name)
+            self.send_header("Content-Disposition", 'attachment; filename="' + fallback_name + '"; filename*=UTF-8\'\'' + encoded_name)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             with open(file_path, "rb") as document_file:
@@ -2568,7 +2578,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
                             },
                             "required": ["format", "filename", "title", "content"],
-                            "additionalProperties": false
+                            "additionalProperties": False
                         }
                     }
                 },
