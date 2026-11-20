@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
@@ -165,6 +165,7 @@ export function MessageBubble({ message, isLive = false }: Props) {
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={rehypePlugins}
+            urlTransform={(url) => url.startsWith('blob:') ? url : defaultUrlTransform(url)}
             components={{
               pre: CodeBlockPre,
             }}
