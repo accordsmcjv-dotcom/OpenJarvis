@@ -124,6 +124,7 @@ export function InputArea() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeRecordingRef = useRef(false);
   const wakeTimerRef = useRef<number | null>(null);
+  const wakeAckFallbackRef = useRef<number | null>(null);
 
 
   const activeId = useAppStore((s) => s.activeId);
@@ -235,9 +236,19 @@ export function InputArea() {
       // Use SHIVAM's configured Marathi neural voice for the wake acknowledgement.
       // The fallback timer keeps command capture available if TTS is offline.
       void useTtsStore.getState().speak('shivam-wake-ack', 'जी, सांगा. काय मदत करू?');
-      window.setTimeout(() => { if (!captureStarted && wakeInProgress) void capture(); }, 4500);
+      // Avoid opening the microphone over a delayed acknowledgement audio.
+      // TTS completion normally starts capture; this is only a last-resort timeout.
+      if (wakeAckFallbackRef.current !== null) window.clearTimeout(wakeAckFallbackRef.current);
+      wakeAckFallbackRef.current = window.setTimeout(() => {
+        wakeAckFallbackRef.current = null;
+        if (!captureStarted && wakeInProgress) void capture();
+      }, 12000);
     };
     const handleTtsFinished = () => {
+      if (wakeAckFallbackRef.current !== null) {
+        window.clearTimeout(wakeAckFallbackRef.current);
+        wakeAckFallbackRef.current = null;
+      }
       if (!mounted || !speechEnabled) {
         announceWakeStatus('off');
         return;
@@ -270,6 +281,10 @@ export function InputArea() {
       window.removeEventListener('shivamWakeWord', handleWake);
       if (wakeTimer !== null) window.clearTimeout(wakeTimer);
       if (wakeStartTimer !== null) window.clearTimeout(wakeStartTimer);
+      if (wakeAckFallbackRef.current !== null) {
+        window.clearTimeout(wakeAckFallbackRef.current);
+        wakeAckFallbackRef.current = null;
+      }
     };
   }, [speechEnabled, startRecording, stopRecording]);
 
