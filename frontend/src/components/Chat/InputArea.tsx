@@ -1150,7 +1150,7 @@ export function InputArea() {
       const text = (result.text || '').trim();
       if (!text) throw new Error('वाचता येण्याजोगी माहिती मिळाली नाही.');
       const prefix = kind === 'screen' ? 'माझ्या स्क्रीनवरील माहिती समजावून सांगा:' : kind === 'pdf' ? 'या PDF मधील माहिती समजावून सांगा:' : kind === 'image-text' ? 'या फोटोतील मजकूर वाचा आणि समजावून सांगा:' : 'या फोटोतील वस्तू आणि दृश्य ओळखा:';
-      setInput(current => current ? current + '\\n\\n' + prefix + '\\n' + text : prefix + '\\n' + text);
+      setInput(current => current ? current + '\n\n' + prefix + '\n' + text : prefix + '\n' + text);
       toast.success(kind === 'pdf' ? `PDF वाचला: ${result.pagesRead}/${result.totalPages} पाने` : result.message || 'माहिती चॅटमध्ये जोडली.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'माहिती वाचता आली नाही.';
