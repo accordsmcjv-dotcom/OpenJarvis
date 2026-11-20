@@ -20,6 +20,7 @@ export function PhotoEditorPage() {
   const [filter, setFilter] = useState<'none' | 'warm' | 'mono' | 'vivid'>('none');
   const [overlayText, setOverlayText] = useState('');
   const [overlaySize, setOverlaySize] = useState(42);
+  const [overlayColor, setOverlayColor] = useState('#ffffff');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function PhotoEditorPage() {
     return () => { imageRef.current = null; };
   }, [imageUrl]);
 
-  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize]);
+  useEffect(() => { drawImage(); }, [rotation, flip, cropRatio, adjustments, filter, overlayText, overlaySize, overlayColor]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -86,7 +87,7 @@ export function PhotoEditorPage() {
       ctx.lineJoin = 'round';
       ctx.strokeStyle = 'rgba(0,0,0,0.72)';
       ctx.lineWidth = Math.max(2, fontSize * 0.12);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = overlayColor;
       const maxWidth = canvas.width * 0.9;
       const words = overlayText.trim().split(/\\s+/);
       const rows: string[] = [];
@@ -237,6 +238,10 @@ export function PhotoEditorPage() {
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={controlStyle}
               />
+              <label className="flex items-center justify-between gap-3 text-xs">
+                <span>मजकुराचा रंग</span>
+                <input type="color" value={overlayColor} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlayColor(event.target.value)} className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent" aria-label="मजकुराचा रंग" />
+              </label>
               <label className="block space-y-1">
                 <span className="flex justify-between text-xs"><span>मजकुराचा आकार</span><span>{overlaySize}</span></span>
                 <input type="range" min="20" max="90" value={overlaySize} disabled={!imageUrl || !overlayText} onChange={(event) => setOverlaySize(Number(event.target.value))} className="w-full accent-cyan-500" />
