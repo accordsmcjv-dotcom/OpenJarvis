@@ -1598,6 +1598,113 @@ def get_badnera_weather(arguments):
         return {"error": "बदनेरा येथील हवामान मिळवता आले नाही: " + str(exc)[:250]}
 
 
+
+GENERATED_DOCUMENTS_DIR = os.path.join(BASE_DIR, "generated_documents")
+
+def create_document_file(arguments):
+    """Create a local DOCX or XLSX using only Python's standard library."""
+    import uuid
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    fmt = arguments.get("format")
+    title = arguments.get("title", "").strip()
+    filename = arguments.get("filename", "").strip()
+    content = arguments.get("content", "")
+    headers = arguments.get("headers", [])
+    rows = arguments.get("rows", [])
+    if fmt not in ("word", "excel"):
+        raise ValueError("फाइलचा प्रकार Word किंवा Excel असावा.")
+    if not isinstance(title, str) or not title or len(title) > 180:
+        raise ValueError("फाइलचे शीर्षक आवश्यक आहे.")
+    if not isinstance(content, str) or len(content) > 100000:
+        raise ValueError("फाइलमधील मजकूर अवैध किंवा खूप मोठा आहे.")
+    if not isinstance(headers, list) or len(headers) > 80 or any(not isinstance(x, str) for x in headers):
+        raise ValueError("Excel शीर्षके अवैध आहेत.")
+    if not isinstance(rows, list) or len(rows) > 5000:
+        raise ValueError("Excel मधील ओळींची संख्या अवैध आहे.")
+    for row in rows:
+        if not isinstance(row, list) or len(row) > 80 or any(not isinstance(v, (str, int, float)) or isinstance(v, bool) for v in row):
+            raise ValueError("Excel मधील डेटा अवैध आहे.")
+    if fmt == "excel" and not headers and not rows:
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        if lines:
+            delimiter = "\t" if "\t" in lines[0] else ","
+            headers = [part.strip() for part in lines[0].split(delimiter)]
+            rows = [[part.strip() for part in line.split(delimiter)] for line in lines[1:]]
+        else:
+            headers, rows = ["माहिती"], [[content or title]]
+    if fmt == "word" and not content.strip():
+        raise ValueError("Word फाइलसाठी मजकूर आवश्यक आहे.")
+
+    safe_name = re.sub(r"[^\w .()-]", "", filename, flags=re.UNICODE).strip(" .")[:100]
+    if not safe_name:
+        safe_name = re.sub(r"[^\w-]", "_", title, flags=re.UNICODE)[:70] or "SHIVAM_Document"
+    extension = ".docx" if fmt == "word" else ".xlsx"
+    if safe_name.lower().endswith((".docx", ".xlsx")):
+        safe_name = safe_name.rsplit(".", 1)[0]
+    download_name = safe_name + extension
+    os.makedirs(GENERATED_DOCUMENTS_DIR, exist_ok=True)
+    file_id = str(uuid.uuid4())
+    path = os.path.join(GENERATED_DOCUMENTS_DIR, file_id + extension)
+
+    if fmt == "word":
+        paragraphs = []
+        for line in content.splitlines():
+            line = line.rstrip()
+            style = ""
+            if line.startswith("# "):
+                line, style = line[2:], '<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>'
+            elif line.startswith("## "):
+                line, style = line[3:], '<w:pPr><w:pStyle w:val="Heading2"/></w:pPr>'
+            text_xml = escape(line).replace("\t", "    ")
+            paragraphs.append('<w:p>' + style + '<w:r><w:t xml:space="preserve">' + text_xml + '</w:t></w:r></w:p>')
+        title_xml = '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + escape(title) + '</w:t></w:r></w:p>'
+        document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+            + title_xml + "".join(paragraphs) + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>'
+            '</w:body></w:document>')
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+            archive.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
+            archive.writestr("word/document.xml", document)
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        def col_letter(number):
+            result = ""
+            while number:
+                number, remainder = divmod(number - 1, 26)
+                result = chr(65 + remainder) + result
+            return result
+        def cell_xml(value, reference):
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return '<c r="' + reference + '" t="n"><v>' + str(value) + '</v></c>'
+            return '<c r="' + reference + '" t="inlineStr"><is><t xml:space="preserve">' + escape(str(value)) + '</t></is></c>'
+        sheet_rows = ['<row r="1">' + cell_xml(title, "A1") + '</row>']
+        if headers:
+            sheet_rows.append('<row r="3">' + "".join(cell_xml(value, col_letter(i + 1) + "3") for i, value in enumerate(headers)) + '</row>')
+            for row_index, row in enumerate(rows, 4):
+                values = list(row[:80])
+                if len(values) < len(headers):
+                    values.extend([""] * (len(headers) - len(values)))
+                sheet_rows.append('<row r="' + str(row_index) + '">' + "".join(cell_xml(value, col_letter(i + 1) + str(row_index)) for i, value in enumerate(values)) + '</row>')
+        else:
+            for row_index, row in enumerate(rows, 3):
+                sheet_rows.append('<row r="' + str(row_index) + '">' + "".join(cell_xml(value, col_letter(i + 1) + str(row_index)) for i, value in enumerate(row)) + '</row>')
+        sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + "".join(sheet_rows) + '</sheetData></worksheet>'
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
+            archive.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+            archive.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="माहिती" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            archive.writestr("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
+            archive.writestr("xl/worksheets/sheet1.xml", sheet)
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    return {"success": True, "file_id": file_id, "filename": download_name,
+            "format": fmt, "download_url": "/v1/documents/download/" + file_id,
+            "message": "फाइल तयार झाली आहे."}
+
+
 class JarvisAPI(BaseHTTPRequestHandler):
 
     def send_json(self, status, data):
@@ -1616,6 +1723,24 @@ class JarvisAPI(BaseHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split("?", 1)[0]
+        document_match = re.fullmatch(r"/v1/documents/download/([a-f0-9-]{36})", route)
+        if document_match:
+            file_id = document_match.group(1)
+            file_path = next((os.path.join(GENERATED_DOCUMENTS_DIR, file_id + ext) for ext in (".docx", ".xlsx") if os.path.isfile(os.path.join(GENERATED_DOCUMENTS_DIR, file_id + ext))), None)
+            if not file_path:
+                self.send_json(404, {"error": "फाइल सापडली नाही किंवा हटवली आहे."})
+                return
+            extension = os.path.splitext(file_path)[1]
+            mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if extension == ".docx" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(os.path.getsize(file_path)))
+            self.send_header("Content-Disposition", 'attachment; filename="' + file_id + extension + '"')
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            with open(file_path, "rb") as document_file:
+                shutil.copyfileobj(document_file, self.wfile)
+            return
         if route == "/v1/info":
             self.send_json(200, {
                 "model": os.getenv("JARVIS_MODEL", "openrouter/auto"),
@@ -2430,6 +2555,26 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 {
                     "type": "function",
                     "function": {
+                        "name": "create_document_file",
+                        "description": "वापरकर्त्याने Excel किंवा Word फाइल मागितल्यास दिलेल्या माहितीनुसार नीट मांडलेली फाइल तयार करा. Excel साठी headers आणि rows द्या; Word साठी content मध्ये संपूर्ण मजकूर, विभाग आणि यादी newline ने द्या. माहिती अपुरी असल्यास आधी आवश्यक प्रश्न विचारा; माहिती बनवू नका. फाइल तयार झाल्यावर download_url वापरकर्त्याला द्या.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "format": {"type": "string", "enum": ["word", "excel"]},
+                                "filename": {"type": "string"},
+                                "title": {"type": "string"},
+                                "content": {"type": "string"},
+                                "headers": {"type": "array", "items": {"type": "string"}},
+                                "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
+                            },
+                            "required": ["format", "filename", "title", "content"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "get_available_tools",
                         "description": "JARVIS ची उपलब्ध Tools यादी मिळवा.",
                         "parameters": {
@@ -2697,6 +2842,8 @@ class JarvisAPI(BaseHTTPRequestHandler):
                                 elif tool_name == "delete_note":
                                     action = create_tool_approval("delete_note", arguments)
                                     result = {"result": {"pending_approval": True, "approval_id": action["id"], "message": "ही कृती करण्यासाठी तुमची मंजुरी आवश्यक आहे. अजून कोणताही बदल केलेला नाही."}}
+                                elif tool_name == "create_document_file":
+                                    result = create_document_file(arguments)
                                 elif tool_name in ("get_current_time", "get_system_info", "get_available_tools"):
                                     result = execute_tool(tool_name, arguments)
                                 else:
