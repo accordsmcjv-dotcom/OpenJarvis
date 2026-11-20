@@ -19,6 +19,9 @@ public class ShivamNotificationListenerService extends NotificationListenerServi
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || sbn.getPackageName() == null) return;
+        boolean voiceReadingEnabled = getSharedPreferences("shivam_notification_privacy", MODE_PRIVATE)
+            .getBoolean("voice_reading_enabled", false);
+        if (!voiceReadingEnabled) return;
         KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         if (keyguard != null && keyguard.isKeyguardLocked()) return;
 
