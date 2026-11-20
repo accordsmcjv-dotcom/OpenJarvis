@@ -19,7 +19,8 @@ import com.getcapacitor.annotation.PermissionCallback;
 @CapacitorPlugin(
     name = "ContactsCall",
     permissions = {
-        @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS })
+        @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
+        @Permission(alias = "call", strings = { Manifest.permission.CALL_PHONE })
     }
 )
 public class ContactsCallPlugin extends Plugin {
@@ -89,23 +90,44 @@ public class ContactsCallPlugin extends Plugin {
         }
     }
 
+    // This method must only be invoked after SHIVAM has obtained an explicit
+    // affirmative response from the user for this specific contact/number.
     @PluginMethod
-    public void openDialer(PluginCall call) {
+    public void placeCall(PluginCall call) {
         String number = call.getString("number", "").trim();
         if (number.isEmpty() || number.length() > 40 || !number.matches("[+0-9*#,;() .-]+")) {
             call.reject("फोन क्रमांक अवैध आहे.");
             return;
         }
+        if (getPermissionState("call") != com.getcapacitor.PermissionState.GRANTED) {
+            requestPermissionForAlias("call", call, "callPermissionCallback");
+            return;
+        }
+        startCall(call, number);
+    }
+
+    @PermissionCallback
+    private void callPermissionCallback(PluginCall call) {
+        if (getPermissionState("call") != com.getcapacitor.PermissionState.GRANTED) {
+            call.reject("फोन कॉल करण्याची Android परवानगी दिलेली नाही.");
+            return;
+        }
+        startCall(call, call.getString("number", "").trim());
+    }
+
+    private void startCall(PluginCall call, String number) {
         try {
-            Intent intent = new Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null));
+            Intent intent = new Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
             JSObject result = new JSObject();
             result.put("success", true);
-            result.put("message", "फोन डायलर उघडला आहे. कॉल सुरू करण्यासाठी डायलरमधील कॉल बटण दाबा.");
+            result.put("message", "कॉल सुरू केला आहे.");
             call.resolve(result);
+        } catch (SecurityException error) {
+            call.reject("कॉलसाठी Android परवानगी आवश्यक आहे.", error);
         } catch (Exception error) {
-            call.reject("फोन डायलर उघडता आला नाही.", error);
+            call.reject("कॉल सुरू करता आला नाही.", error);
         }
     }
 }
