@@ -274,7 +274,7 @@ export function SystemPanel() {
           {screenText && (
             <div className="mt-2 rounded-lg p-2.5 text-xs whitespace-pre-wrap break-words max-h-48 overflow-y-auto" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>
               {screenText}
-              <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('shivamInsertScreenText', { detail: screenText }))} className="block mt-2 font-semibold" style={{ color: 'var(--color-accent)' }}>
+              <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('shivamInsertScreenText', { detail: 'SHIVAM ने स्क्रीन, फोटो किंवा दस्तऐवजातून वाचलेला संदर्भ खाली दिला आहे. त्याचा अर्थ समजावून सांगा आणि आवश्यक पुढील कृती सुचवा.\\n\\n' + screenText }))} className="block mt-2 font-semibold" style={{ color: 'var(--color-accent)' }}>
                 हा मजकूर चॅटमध्ये आणा
               </button>
             </div>
