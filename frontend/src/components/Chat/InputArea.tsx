@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip, Search, Camera, X } from 'lucide-react';
+import { Send, Square, Paperclip, Search, Camera, X, ScanEye, FileText, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat, streamResearch } from '../../lib/sse';
@@ -21,7 +21,15 @@ interface ShivamNavigationApi {
   stopWatchman(): Promise<{ stopping: boolean }>;
 }
 const ShivamNavigation = registerPlugin<ShivamNavigationApi>('ShivamDevice');
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+interface ShivamScreenUnderstandingApi {
+  captureAndReadScreen(): Promise<{ text: string; message: string }>;
+  pickImageAndRead(): Promise<{ text: string; message: string }>;
+  pickImageAndDescribe(): Promise<{ text: string; message: string }>;
+  pickPdfAndRead(): Promise<{ text: string; message: string; pagesRead: number; totalPages: number }>;
+}
+const ShivamScreenUnderstanding = registerPlugin<ShivamScreenUnderstandingApi>('ScreenUnderstanding');
 
 interface ShivamWakeWordApi { startListening(): Promise<void>; stopListening(): Promise<void>; }
 const ShivamWakeWord = registerPlugin<ShivamWakeWordApi>('ShivamWakeWord');
@@ -115,6 +123,7 @@ function useResearchCorpusSync(enabled: boolean): {
 export function InputArea() {
   const [input, setInput] = useState('');
   const [cameraPhoto, setCameraPhoto] = useState<string | null>(null);
+  const [documentAction, setDocumentAction] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const previousOutfitPhotoRef = useRef<string | null>(null);
   const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'number' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
@@ -1122,6 +1131,35 @@ export function InputArea() {
 
   sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
 
+  const runScreenTool = async (kind: 'screen' | 'pdf' | 'image-text' | 'image-describe') => {
+    if (!Capacitor.isNativePlatform()) {
+      toast.error('ही सुविधा Android अॅपमध्ये उपलब्ध आहे.');
+      return;
+    }
+    if (documentAction) return;
+    const labels = { screen: 'स्क्रीन वाचत आहे…', pdf: 'PDF वाचत आहे…', 'image-text': 'फोटोतील मजकूर वाचत आहे…', 'image-describe': 'फोटोचे विश्लेषण करत आहे…' };
+    setDocumentAction(labels[kind]);
+    try {
+      const result = kind === 'screen'
+        ? await ShivamScreenUnderstanding.captureAndReadScreen()
+        : kind === 'pdf'
+          ? await ShivamScreenUnderstanding.pickPdfAndRead()
+          : kind === 'image-text'
+            ? await ShivamScreenUnderstanding.pickImageAndRead()
+            : await ShivamScreenUnderstanding.pickImageAndDescribe();
+      const text = (result.text || '').trim();
+      if (!text) throw new Error('वाचता येण्याजोगी माहिती मिळाली नाही.');
+      const prefix = kind === 'screen' ? 'माझ्या स्क्रीनवरील माहिती समजावून सांगा:' : kind === 'pdf' ? 'या PDF मधील माहिती समजावून सांगा:' : kind === 'image-text' ? 'या फोटोतील मजकूर वाचा आणि समजावून सांगा:' : 'या फोटोतील वस्तू आणि दृश्य ओळखा:';
+      setInput(current => current ? current + '\\n\\n' + prefix + '\\n' + text : prefix + '\\n' + text);
+      toast.success(kind === 'pdf' ? `PDF वाचला: ${result.pagesRead}/${result.totalPages} पाने` : result.message || 'माहिती चॅटमध्ये जोडली.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'माहिती वाचता आली नाही.';
+      if (!/cancel|रद्द/i.test(message)) toast.error(message);
+    } finally {
+      setDocumentAction(null);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1132,7 +1170,7 @@ export function InputArea() {
   return (
     <div className="px-4 pb-4 pt-2" style={{ maxWidth: 'var(--chat-max-width)', margin: '0 auto', width: '100%' }}>
       <div className="mb-2 flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setDeepResearch(!deepResearch)}
@@ -1149,7 +1187,24 @@ export function InputArea() {
             <Search size={12} />
             Deep Research
           </button>
+          {Capacitor.isNativePlatform() && (
+            <>
+              <button type="button" onClick={() => void runScreenTool('screen')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }} title="सध्याच्या स्क्रीनवरील मजकूर वाचा">
+                <ScanEye size={12} /> स्क्रीन वाचा
+              </button>
+              <button type="button" onClick={() => void runScreenTool('pdf')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }} title="PDF मधील मजकूर वाचा">
+                <FileText size={12} /> PDF वाचा
+              </button>
+              <button type="button" onClick={() => void runScreenTool('image-text')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }} title="फोटोतील मजकूर वाचा">
+                <ImageIcon size={12} /> फोटो मजकूर
+              </button>
+              <button type="button" onClick={() => void runScreenTool('image-describe')} disabled={!!documentAction || streamState.isStreaming} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs disabled:opacity-40" style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }} title="फोटोतील वस्तू ओळखा">
+                <Search size={12} /> फोटो ओळखा
+              </button>
+            </>
+          )}
         </div>
+        {documentAction && <div className="text-[11px] px-1" style={{ color: 'var(--color-text-tertiary)' }}>{documentAction}</div>}
         {deepResearch && corpusSync.syncing && corpusSync.itemsSynced > 0 && (
           <div
             className="text-[11px] leading-snug"
