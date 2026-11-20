@@ -85,6 +85,7 @@ function useResearchCorpusSync(enabled: boolean): {
 
 export function InputArea() {
   const [input, setInput] = useState('');
+  const sendVoiceCommandRef = useRef<(command: string) => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -173,8 +174,12 @@ export function InputArea() {
             try {
               const command = await stopRecording();
               if (command) {
-                setInput((previous) => previous ? `${previous} ${command}` : command);
-                toast.success('तुमचा प्रश्न ऐकला आहे. पाठवण्यासाठी Send दाबा.');
+                setInput(command);
+                // A wake-word interaction is an explicit hands-free request:
+                // enable spoken replies and submit the captured command.
+                useAppStore.getState().updateSettings({ voiceOutputEnabled: true, voiceAutoplay: true });
+                toast.success('तुमचा प्रश्न समजला. SHIVAM उत्तर देत आहे.');
+                window.setTimeout(() => sendVoiceCommandRef.current(command), 250);
               }
             } catch { toast.error('आवाज समजला नाही. पुन्हा “Shivam” म्हणा.'); }
             captureStarted = false;
@@ -255,8 +260,8 @@ export function InputArea() {
     resetStream();
   }, [resetStream]);
 
-  const sendMessage = useCallback(async () => {
-    const content = input.trim();
+  const sendMessage = useCallback(async (voiceCommand?: string) => {
+    const content = (voiceCommand ?? input).trim();
     if (!content || streamState.isStreaming) return;
     if (!selectedModel) {
       toast.error('Pick a model first (⌘K)');
@@ -659,6 +664,8 @@ export function InputArea() {
     temperature,
     maxTokens,
   ]);
+
+  sendVoiceCommandRef.current = (command: string) => { void sendMessage(command); };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
