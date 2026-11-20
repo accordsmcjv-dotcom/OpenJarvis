@@ -1,16 +1,6 @@
 name: SHIVAM Quality Checks
 
 on:
-  push:
-    branches:
-      - personal-jarvis
-    paths:
-      - "api_server.py"
-      - "jarvis.py"
-      - "tools_engine.py"
-      - "snooze.py"
-      - "frontend/**"
-      - ".github/workflows/quality-checks.yml"
   workflow_dispatch:
 
 permissions:
