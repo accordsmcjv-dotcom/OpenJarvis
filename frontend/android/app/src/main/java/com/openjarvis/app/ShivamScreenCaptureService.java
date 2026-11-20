@@ -156,6 +156,7 @@ public class ShivamScreenCaptureService extends Service {
         ByteBuffer buffer = planes[0].getBuffer();
         buffer.rewind();
         padded.copyPixelsFromBuffer(buffer);
+        if (paddedWidth == width) return padded;
         Bitmap cropped = Bitmap.createBitmap(padded, 0, 0, width, height);
         padded.recycle();
         return cropped;
