@@ -14,6 +14,7 @@ from contextlib import contextmanager
 import uuid
 import re
 import urllib.parse
+import hmac
 from tools_engine import execute_tool, get_available_tools
 
 HOST = "127.0.0.1"
@@ -1755,14 +1756,55 @@ def create_document_file(arguments):
 
 class JarvisAPI(BaseHTTPRequestHandler):
 
+    def allowed_origins(self):
+        defaults = {
+            "https://localhost",
+            "http://localhost",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+        }
+        configured = os.getenv("OPENJARVIS_ALLOWED_ORIGINS", "")
+        return defaults | {item.strip() for item in configured.split(",") if item.strip()}
+
+    def send_cors_headers(self):
+        origin = self.headers.get("Origin")
+        if origin and origin in self.allowed_origins():
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-File-Name")
+            self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+
+        origin = self.headers.get("Origin")
+        if origin and origin not in self.allowed_origins():
+            self.send_error(403, "Origin not allowed")
+            return False
+
+        route = urllib.parse.urlsplit(self.path).path
+        api_route = route.startswith("/v1/") or route.startswith("/api/")
+        if api_route and self.command != "OPTIONS":
+            expected = os.getenv("OPENJARVIS_API_KEY", "").strip()
+            if expected:
+                supplied = self.headers.get("Authorization", "")
+                token = supplied[7:].strip() if supplied.startswith("Bearer ") else ""
+                if not token or not hmac.compare_digest(token, expected):
+                    self.send_error(401, "Missing or invalid API key")
+                    return False
+        return True
+
     def send_json(self, status, data):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -1792,7 +1834,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
             fallback_name = re.sub(r"[^A-Za-z0-9._-]", "_", original_name)
             encoded_name = urllib.parse.quote(original_name)
             self.send_header("Content-Disposition", 'attachment; filename="' + fallback_name + '"; filename*=UTF-8\'\'' + encoded_name)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             with open(file_path, "rb") as document_file:
                 shutil.copyfileobj(document_file, self.wfile)
@@ -2154,7 +2196,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "audio/mpeg")
                 self.send_header("Content-Length", str(len(audio_data)))
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(audio_data)
 
@@ -2808,7 +2850,7 @@ class JarvisAPI(BaseHTTPRequestHandler):
                     self.send_header("Content-Type", "text/event-stream; charset=utf-8")
                     self.send_header("Cache-Control", "no-cache")
                     self.send_header("Connection", "close")
-                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_cors_headers()
                     self.end_headers()
 
                     model_info = {
