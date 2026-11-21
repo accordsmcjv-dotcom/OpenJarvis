@@ -6,7 +6,7 @@ import { streamChat, streamResearch } from '../../lib/sse';
 import { apiFetch, fetchSavings, getBase } from '../../lib/api';
 import { listConnectors, getSyncStatus } from '../../lib/connectors-api';
 import { serializeToolCallArguments } from '../../lib/tool-call';
-import { findShivamContacts, placeShivamCall, openShivamMessageComposer, sendShivamSms, searchShivamYouTube, type ShivamContact } from '../../lib/shivam-calls';
+import { findShivamContacts, placeShivamCall, openShivamMessageComposer, searchShivamYouTube, type ShivamContact } from '../../lib/shivam-calls';
 import {
   engineFromCompletionChunk,
   resolveChatEngine,
@@ -137,7 +137,7 @@ export function InputArea() {
   const previousOutfitPhotoRef = useRef<string | null>(null);
   const [pendingCall, setPendingCall] = useState<{ stage: 'contact' | 'number' | 'choose' | 'confirm'; contacts: ShivamContact[]; selected?: ShivamContact } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<{
-    channel: 'whatsapp' | 'sms';
+    channel: 'whatsapp';
     stage: 'number' | 'choose' | 'recipient-confirm' | 'message' | 'final-confirm';
     contacts: ShivamContact[];
     selected?: ShivamContact;
@@ -527,8 +527,7 @@ export function InputArea() {
       return;
     }
 
-    // Voice-first WhatsApp/SMS flow. SMS is sent natively after the explicit
-    // final voice confirmation; WhatsApp uses its official user-visible composer.
+    // Voice-first WhatsApp flow using the official user-visible composer.
     if (pendingMessage) {
       if (negative) {
         setPendingMessage(null);
@@ -539,7 +538,7 @@ export function InputArea() {
         if (isPhoneNumber) {
           const selected = { name: 'या नंबरवर', number: spokenNumber };
           setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
-          speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+          speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${'WhatsApp'} मेसेज पाठवू का?`);
           return;
         }
         try {
@@ -547,7 +546,7 @@ export function InputArea() {
           if (result.contacts.length === 1) {
             const selected = result.contacts[0];
             setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', contacts: result.contacts, selected });
-            speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+            speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${'WhatsApp'} मेसेज पाठवू का?`);
           } else if (result.contacts.length > 1) {
             setPendingMessage({ ...pendingMessage, stage: 'choose', contacts: result.contacts });
             speakCallReply('या नावाचे अनेक संपर्क आहेत. पूर्ण नाव सांगा.');
@@ -570,7 +569,7 @@ export function InputArea() {
         }
         const selected = matches[0];
         setPendingMessage({ ...pendingMessage, stage: 'recipient-confirm', selected });
-        speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${pendingMessage.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${'WhatsApp'} मेसेज पाठवू का?`);
         return;
       }
       if (pendingMessage.stage === 'recipient-confirm') {
@@ -594,7 +593,6 @@ export function InputArea() {
         }
         const selected = pendingMessage.selected;
         const message = pendingMessage.message;
-        const channel = pendingMessage.channel;
         if (!selected || !message) {
           setPendingMessage(null);
           speakCallReply('मेसेजची माहिती अपूर्ण आहे. पुन्हा प्रयत्न करा.');
@@ -602,13 +600,8 @@ export function InputArea() {
         }
         setPendingMessage(null);
         try {
-          if (channel === 'sms') {
-            const result = await sendShivamSms(selected.number, message);
-            speakCallReply(result.message || 'SMS पाठवण्याची विनंती मोबाईल नेटवर्ककडे दिली आहे.');
-          } else {
-            await openShivamMessageComposer(channel, selected.number, message);
-            speakCallReply('WhatsApp उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.');
-          }
+          await openShivamMessageComposer(selected.number, message);
+          speakCallReply('वैयक्तिक WhatsApp उघडले आहे आणि मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.');
         } catch (error) {
           speakCallReply(error instanceof Error ? error.message : 'मेसेज अॅप उघडता आले नाही.');
         }
@@ -678,23 +671,21 @@ export function InputArea() {
     }
 
     const whatsappIntent = /(whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप)/.test(normalized);
-    const smsIntent = /(sms|एसएमएस|text message|टेक्स्ट मेसेज|मजकूर संदेश)/.test(normalized);
-    const messageIntent = whatsappIntent || smsIntent;
-    if (messageIntent) {
-      const channel: 'whatsapp' | 'sms' = whatsappIntent ? 'whatsapp' : 'sms';
+    if (whatsappIntent) {
+      const channel: 'whatsapp' = 'whatsapp';
       if (isPhoneNumber) {
         const selected = { name: 'या नंबरवर', number: spokenNumber };
         setPendingMessage({ channel, stage: 'recipient-confirm', contacts: [], selected });
-        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+        speakCallReply(`शिवम विचारतोय, ${spokenNumber} या नंबरवर ${'WhatsApp'} मेसेज पाठवू का?`);
         return;
       }
       const target = normalized
-        .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|sms|एसएमएस|text|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
+        .replace(/(मला|जरा|शिवम|shivam|whatsapp|व्हॉट्स ?अॅप|वॉट्स ?अॅप|व्हाट्स ?अॅप|वाट्स ?अॅप|message|मेसेज|संदेश|पाठव|पाठवा|कर|करा|please|now)/g, ' ')
         .replace(/(^|[ ])(ला|या|यांना|याला|त्याला|तिला|नंबरवर|नंबर|number|वर|var)(?=[ ]|$)/g, ' ').replace(/ला$/g, '')
         .replace(/[ ]+/g, ' ').trim();
       if (!target) {
         setPendingMessage({ channel, stage: 'number', contacts: [] });
-        speakCallReply(`शिवम विचारतोय, कोणाला ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू? संपर्काचे नाव किंवा नंबर सांगा.`);
+        speakCallReply(`शिवम विचारतोय, कोणाला ${'WhatsApp'} मेसेज पाठवू? संपर्काचे नाव किंवा नंबर सांगा.`);
         return;
       }
       try {
@@ -705,7 +696,7 @@ export function InputArea() {
         } else if (result.contacts.length === 1) {
           const selected = result.contacts[0];
           setPendingMessage({ channel, stage: 'recipient-confirm', contacts: result.contacts, selected });
-          speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} मेसेज पाठवू का?`);
+          speakCallReply(`शिवम विचारतोय, ${selected.name} यांना ${'WhatsApp'} मेसेज पाठवू का?`);
         } else {
           setPendingMessage({ channel, stage: 'choose', contacts: result.contacts });
           speakCallReply('या नावाशी जुळणारे अनेक संपर्क आहेत. कोणता संपर्क निवडायचा ते नाव सांगा.');

@@ -20,8 +20,7 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "ContactsCall",
     permissions = {
         @Permission(alias = "contacts", strings = { Manifest.permission.READ_CONTACTS }),
-        @Permission(alias = "call", strings = { Manifest.permission.CALL_PHONE }),
-        @Permission(alias = "sms", strings = { Manifest.permission.SEND_SMS })
+        @Permission(alias = "call", strings = { Manifest.permission.CALL_PHONE })
     }
 )
 public class ContactsCallPlugin extends Plugin {
@@ -131,50 +130,6 @@ public class ContactsCallPlugin extends Plugin {
             call.reject("कॉल सुरू करता आला नाही.", error);
         }
     }
-    // Sends SMS only after SHIVAM has confirmed the exact recipient and text.
-    @PluginMethod
-    public void sendSms(PluginCall call) {
-        String number = call.getString("number", "").trim();
-        String message = call.getString("message", "").trim();
-        String digits = number.replaceAll("[^0-9]", "");
-        if (digits.length() < 7 || digits.length() > 15 || message.isEmpty() || message.length() > 4000) {
-            call.reject("फोन नंबर किंवा मेसेज योग्य नाही.");
-            return;
-        }
-        if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
-            requestPermissionForAlias("sms", call, "smsPermissionCallback");
-            return;
-        }
-        sendSmsNow(call, number, message);
-    }
-
-    @PermissionCallback
-    private void smsPermissionCallback(PluginCall call) {
-        if (getPermissionState("sms") != com.getcapacitor.PermissionState.GRANTED) {
-            call.reject("SMS पाठवण्याची Android परवानगी दिलेली नाही.");
-            return;
-        }
-        sendSmsNow(call, call.getString("number", "").trim(), call.getString("message", "").trim());
-    }
-
-    private void sendSmsNow(PluginCall call, String number, String message) {
-        try {
-            android.telephony.SmsManager smsManager = android.telephony.SmsManager.getDefault();
-            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
-            if (parts.size() > 1) {
-                smsManager.sendMultipartTextMessage(number, null, parts, null, null);
-            } else {
-                smsManager.sendTextMessage(number, null, message, null, null);
-            }
-            JSObject result = new JSObject();
-            result.put("success", true);
-            result.put("message", "SMS पाठवण्याची विनंती मोबाईल नेटवर्ककडे दिली आहे.");
-            call.resolve(result);
-        } catch (Exception error) {
-            call.reject("SMS पाठवता आला नाही. SIM, नेटवर्क आणि SMS परवानगी तपासा.", error);
-        }
-    }
-
     // Finds the first YouTube video for a spoken request, then opens its watch
     // page in the official app so playback can start directly.
     @PluginMethod
@@ -255,49 +210,33 @@ public class ContactsCallPlugin extends Plugin {
         return launch != null;
     }
 
-    // Opens a user-visible composer only after SHIVAM has confirmed the
-    // recipient and exact message. The user completes the final Send action.
+    // Opens personal WhatsApp only after SHIVAM confirms the recipient and message.
     @PluginMethod
     public void openMessageComposer(PluginCall call) {
-        String channel = call.getString("channel", "").trim().toLowerCase(java.util.Locale.ROOT);
         String number = call.getString("number", "").trim();
         String message = call.getString("message", "").trim();
         String digits = number.replaceAll("[^0-9]", "");
-        if (channel.equals("whatsapp") && digits.length() == 10) digits = "91" + digits;
-        if (!(channel.equals("sms") || channel.equals("whatsapp"))) {
-            call.reject("मेसेजचा प्रकार SMS किंवा WhatsApp असावा.");
-            return;
-        }
+        if (digits.length() == 10) digits = "91" + digits;
         if (digits.length() < 7 || digits.length() > 15 || message.isEmpty() || message.length() > 4000) {
             call.reject("फोन नंबर किंवा मेसेज योग्य नाही.");
             return;
         }
         try {
-            Intent intent;
-            if (channel.equals("sms")) {
-                intent = new Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null));
-                intent.putExtra("sms_body", message);
-            } else {
-                Uri uri = Uri.parse("https://wa.me/" + digits + "?text=" + Uri.encode(message));
-                intent = new Intent(Intent.ACTION_VIEW, uri);
-                // Personal WhatsApp only. Never fall back to WhatsApp Business
-                // or a generic handler, so the user's chosen app stays explicit.
-                intent.setPackage("com.whatsapp");
-                if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-                    call.reject("वैयक्तिक WhatsApp स्थापित नाही. कृपया WhatsApp अॅप तपासा.");
-                    return;
-                }
+            Uri uri = Uri.parse("https://wa.me/" + digits + "?text=" + Uri.encode(message));
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.setPackage("com.whatsapp");
+            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                call.reject("वैयक्तिक WhatsApp स्थापित नाही. कृपया WhatsApp अॅप तपासा.");
+                return;
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
             JSObject result = new JSObject();
             result.put("success", true);
-            result.put("message", "मेसेज तयार केला आहे. पाठवण्यासाठी अॅपमधील Send बटण दाबा.");
+            result.put("message", "मेसेज तयार केला आहे. पाठवण्यासाठी WhatsApp मधील Send बटण दाबा.");
             call.resolve(result);
         } catch (Exception error) {
-            call.reject(channel.equals("whatsapp")
-                ? "WhatsApp उघडता आले नाही. WhatsApp स्थापित आहे का ते तपासा."
-                : "SMS अॅप उघडता आले नाही.", error);
+            call.reject("WhatsApp उघडता आले नाही. WhatsApp स्थापित आहे का ते तपासा.", error);
         }
     }
 
