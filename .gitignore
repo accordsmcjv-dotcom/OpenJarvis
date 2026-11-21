@@ -148,3 +148,44 @@ snooze_backup*.py
 
 # Generated TypeScript build cache
 frontend/tsconfig.tsbuildinfo
+
+# SHIVAM local secrets and personal runtime data
+tool_credentials.json
+pending_approvals.json
+memory_categories.json
+models_cache.json
+notes.json
+history_before_*.json
+memory_before_*.json
+
+# Local PID and generated APKs
+*.apk
+shivam_server.pid
+
+# Local backups and development snapshots
+/BACKUP/
+/backups/
+/temp/
+/SHIVAM_APK*/
+/SHIVAM_FINAL_APK*/
+/SHIVAM_APK_BUILD_*/
+/api_server_before_*.py
+api_server_*.bak*
+*_before_*.py
+*_before_*.tsx
+*.bak
+*.bak_*
+
+# Local audit artifacts
+JARVIS_MASTER_AUDIT.txt
+
+# Additional local backup snapshots
+AndroidManifest_before_*.xml
+*_before_*.ts
+api_server.py.toolcalling_success
+tools_engine.py.toolcalling_success
+api_server_smart_memory_backup_*.py
+group1_*_backup_*/
+group2_*_backup_*/
+master_upgrade_backup_*/
+frontend/src/lib/*_before_*.ts
